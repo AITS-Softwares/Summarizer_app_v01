@@ -1,5 +1,5 @@
 export type ProviderMode = 'api' | 'local'
-export type ViewName = 'chats' | 'library' | 'reports' | 'settings'
+export type ViewName = 'chats' | 'library' | 'reports' | 'admin-access' | 'settings'
 
 export type ConversationSummary = {
   id: string

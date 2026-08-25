@@ -1,61 +1,25 @@
-import {
-  Archive,
-  CircleHelp,
-  Cloud,
-  HardDrive,
-  Menu,
-  PanelRightClose,
-  PanelRightOpen,
-} from 'lucide-react'
-import type { HealthStatus, ProviderMode, ViewName } from '../../types'
+import { Archive, CircleHelp, PanelRightClose, PanelRightOpen, SlidersHorizontal } from 'lucide-react'
+import type { HealthStatus, ViewName } from '../../types'
+import { Brand } from '../shared/Brand'
 import { StatusPill } from '../shared/StatusPill'
 
-type AppHeaderProps = {
-  view: ViewName
-  title?: string
-  health: HealthStatus | null
-  provider: ProviderMode
-  sourcesOpen: boolean
-  canSaveReport: boolean
-  openNavigation: () => void
-  changeProvider: (provider: ProviderMode) => Promise<void>
-  archiveCurrent: () => Promise<void>
-  toggleSources: () => void
-  openHelp: () => void
-}
+type AppHeaderProps = { view: ViewName; title?: string; health: HealthStatus | null; sourcesOpen: boolean; workbenchOpen: boolean; canSaveReport: boolean; archiveCurrent: () => Promise<void>; toggleSources: () => void; toggleWorkbench: () => void; openHelp: () => void }
 
 export function AppHeader(props: AppHeaderProps) {
-  const title = props.view === 'chats'
-    ? props.title ?? 'New document analysis'
-    : props.view === 'library'
-      ? 'Document library'
-      : props.view === 'reports'
-        ? 'Saved reports'
-        : 'AI provider settings'
-
+  const title = props.view === 'chats' ? props.title ?? 'New analysis case' : props.view === 'library' ? 'Document library' : props.view === 'reports' ? 'Saved reports' : props.view === 'admin-access' ? 'Administration access' : 'Processing configuration'
   return (
-    <header className="flex h-[72px] shrink-0 items-center gap-3 border-b border-[#eadfcd] px-4 sm:px-6">
-      <button type="button" className="icon-button lg:hidden" aria-label="Open navigation" onClick={props.openNavigation}><Menu size={19} /></button>
+    <header className="flex h-[76px] shrink-0 items-center gap-4 border-b border-[#eadfcd] bg-[#fffdf8] px-4 sm:px-6">
+      <Brand />
+      <div className="hidden h-8 w-px bg-[#e5d8c2] sm:block" />
       <div className="min-w-0">
-        <h1 className="truncate text-sm font-bold sm:text-[15px]">{title}</h1>
-        <p className="mt-0.5 hidden text-[10px] text-[#98866c] sm:block">{props.view === 'chats' ? 'Ask questions across files, folders, and reports' : 'AITS · Making softwares success'}</p>
+        <p className="mb-0.5 text-[9px] font-bold uppercase tracking-[0.17em] text-[#a06d27]">Document workspace</p>
+        <h1 className="truncate text-sm font-bold text-[#281f17] sm:text-[15px]">{title}</h1>
       </div>
       <div className="ml-auto flex items-center gap-2">
         <div className="hidden md:block"><StatusPill health={props.health} /></div>
-        {props.view === 'chats' && (
-          <div className="provider-switch">
-            <button type="button" className={props.provider === 'api' ? 'provider-active' : ''} onClick={() => void props.changeProvider('api')} title="Use configured cloud AI"><Cloud size={14} /><span className="hidden sm:inline">AI API</span></button>
-            <button type="button" className={props.provider === 'local' ? 'provider-active' : ''} onClick={() => void props.changeProvider('local')} title="Use local Ollama"><HardDrive size={14} /><span className="hidden sm:inline">Local</span></button>
-          </div>
-        )}
-        {props.view === 'chats' && props.canSaveReport && (
-          <button type="button" className="secondary-button hidden sm:flex" onClick={() => void props.archiveCurrent()}><Archive size={14} />Save report</button>
-        )}
-        {props.view === 'chats' && (
-          <button type="button" className="icon-button" aria-label={props.sourcesOpen ? 'Hide sources' : 'Show sources'} title={props.sourcesOpen ? 'Hide sources' : 'Show sources'} onClick={props.toggleSources}>
-            {props.sourcesOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
-          </button>
-        )}
+        <button type="button" className={`icon-button ${props.workbenchOpen ? 'bg-[#f4eadb] text-[#6f481b]' : ''}`} aria-label={props.workbenchOpen ? 'Hide workspace controls' : 'Show workspace controls'} title={props.workbenchOpen ? 'Hide workspace controls' : 'Show workspace controls'} onClick={props.toggleWorkbench}><SlidersHorizontal size={17} /></button>
+        {props.view === 'chats' && props.canSaveReport && <button type="button" className="secondary-button hidden sm:flex" onClick={() => void props.archiveCurrent()}><Archive size={14} />Save report</button>}
+        {props.view === 'chats' && <button type="button" className="icon-button" aria-label={props.sourcesOpen ? 'Hide source material' : 'Show source material'} title={props.sourcesOpen ? 'Hide source material' : 'Show source material'} onClick={props.toggleSources}>{props.sourcesOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}</button>}
         <button type="button" className="icon-button" aria-label="Help" onClick={props.openHelp}><CircleHelp size={18} /></button>
       </div>
     </header>

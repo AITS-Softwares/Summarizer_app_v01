@@ -17,11 +17,12 @@ import { api } from '../services/api'
 import { AppHeader } from '../components/layout/AppHeader'
 import { AppSidebar } from '../components/layout/AppSidebar'
 import { Modal } from '../components/shared/Modal'
-import { defaultSettings, getApiModels, localModelPresets } from '../config/providers'
+import { defaultSettings } from '../config/providers'
 import { ChatWorkspace } from '../features/chat/ChatWorkspace'
 import { DocumentLibraryPage } from '../features/documents/DocumentLibraryPage'
 import { ReportsPage } from '../features/reports/ReportsPage'
 import { SettingsPage } from '../features/settings/SettingsPage'
+import { AdminAccessPage } from '../features/settings/AdminAccessPage'
 import type {
   ConversationDetails,
   ConversationSummary,
@@ -56,8 +57,8 @@ type SpeechRecognitionInstance = {
 }
 
 export function SummaryStudioApp() {
-  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sourcesOpen, setSourcesOpen] = useState(() => window.innerWidth >= 1280)
+  const [workbenchOpen, setWorkbenchOpen] = useState(false)
   const [view, setView] = useState<ViewName>('chats')
   const [provider, setProvider] = useState<ProviderMode>('api')
   const [settings, setSettings] = useState<ProviderSettings>(defaultSettings)
@@ -136,7 +137,6 @@ export function SummaryStudioApp() {
       setCurrent(await api.conversation(id))
       setPendingFiles([])
       setView('chats')
-      setSidebarOpen(false)
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Could not load the conversation.')
     } finally {
@@ -153,7 +153,6 @@ export function SummaryStudioApp() {
     setEditingMessageId(null)
     setIsListening(false)
     setView('chats')
-    setSidebarOpen(false)
   }
 
   const addFiles = (incoming: FileList | File[]) => {
@@ -178,25 +177,6 @@ export function SummaryStudioApp() {
     event.preventDefault()
     setIsDragging(false)
     if (event.dataTransfer.files.length) addFiles(event.dataTransfer.files)
-  }
-
-  const changeProvider = async (nextProvider: ProviderMode) => {
-    setProvider(nextProvider)
-    const nextSettings = { ...settings, providerMode: nextProvider }
-    setSettings(nextSettings)
-    try {
-      setSettings(await api.updateSettings(nextSettings, ''))
-    } catch {
-      setNotice('Provider changed for this session, but could not be saved.')
-    }
-  }
-
-  const changeModel = (model: string) => {
-    setSettings((currentSettings) =>
-      provider === 'api'
-        ? { ...currentSettings, apiModel: model }
-        : { ...currentSettings, localModel: model },
-    )
   }
 
   const submitPrompt = async (event: FormEvent) => {
@@ -233,7 +213,7 @@ export function SummaryStudioApp() {
       setEditingMessageId(null)
       setCurrent(await api.conversation(result.conversationId))
       await refreshData()
-      if (result.requiresConfiguration) setView('settings')
+      if (result.requiresConfiguration) setNotice('Processing is not configured. Contact an administrator to complete the setup.')
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') {
         setNotice('Generation stopped.')
@@ -386,8 +366,11 @@ export function SummaryStudioApp() {
   }
 
   const navigate = (nextView: ViewName) => {
+    if (nextView === 'settings' && sessionStorage.getItem('document-review-admin') !== 'granted') {
+      setView('admin-access')
+      return
+    }
     setView(nextView)
-    setSidebarOpen(false)
   }
 
   const allSources: Array<DocumentItem | { id: string; name: string; sizeBytes: number; status: string }> = [
@@ -402,57 +385,40 @@ export function SummaryStudioApp() {
 
   return (
     <div className="h-dvh overflow-hidden bg-[#f6f0e6] text-[#281f17]">
-      {sidebarOpen && (
-        <button
-          type="button"
-          aria-label="Close navigation"
-          className="fixed inset-0 z-30 bg-[#281b10]/30 backdrop-blur-[2px] lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      <div className="flex h-full">
-        <AppSidebar
-          open={sidebarOpen}
-          view={view}
-          currentConversationId={current?.id}
-          conversations={filteredConversations}
-          archivedCount={archivedConversations.length}
-          documentCount={libraryDocuments.length}
-          settings={settings}
-          search={search}
-          isBooting={isBooting}
-          setSearch={setSearch}
-          close={() => setSidebarOpen(false)}
-          navigate={navigate}
-          startNewAnalysis={startNewAnalysis}
-          openConversation={openConversation}
-          deleteConversation={deleteConversation}
-        />
-
-        <main className="flex min-w-0 flex-1 flex-col bg-[#fffdf8]">
+      <main className="flex h-full min-w-0 flex-1 flex-col bg-[#fffdf8]">
           <AppHeader
             view={view}
             title={current?.title}
             health={health}
-            provider={provider}
             sourcesOpen={sourcesOpen}
+            workbenchOpen={workbenchOpen}
             canSaveReport={Boolean(current?.messages.length)}
-            openNavigation={() => setSidebarOpen(true)}
-            changeProvider={changeProvider}
             archiveCurrent={archiveCurrent}
             toggleSources={() => setSourcesOpen((open) => !open)}
+            toggleWorkbench={() => setWorkbenchOpen((open) => !open)}
             openHelp={() => setHelpOpen(true)}
           />
+
+          {workbenchOpen && <AppSidebar
+            view={view}
+            currentConversationId={current?.id}
+            conversations={filteredConversations}
+            archivedCount={archivedConversations.length}
+            documentCount={libraryDocuments.length}
+            search={search}
+            isBooting={isBooting}
+            setSearch={setSearch}
+            navigate={navigate}
+            startNewAnalysis={startNewAnalysis}
+            openConversation={openConversation}
+            deleteConversation={deleteConversation}
+          />}
 
           {view === 'chats' && (
             <ChatWorkspace
               current={current}
               pendingFiles={pendingFiles}
               prompt={prompt}
-              provider={provider}
-              selectedModel={provider === 'api' ? settings.apiModel || defaultSettings.apiModel : settings.localModel || defaultSettings.localModel}
-              modelOptions={provider === 'api' ? getApiModels(settings.apiBaseUrl) : localModelPresets.map((model) => model.value)}
               isLoading={isLoading}
               isListening={isListening}
               editingMessageId={editingMessageId}
@@ -460,7 +426,6 @@ export function SummaryStudioApp() {
               sourcesOpen={sourcesOpen}
               allSources={allSources}
               setPrompt={setPrompt}
-              setModel={changeModel}
               setIsDragging={setIsDragging}
               setSourcesOpen={setSourcesOpen}
               addFiles={addFiles}
@@ -475,7 +440,6 @@ export function SummaryStudioApp() {
               reprocessDocument={reprocessDocument}
               openFiles={() => fileInputRef.current?.click()}
               openFolder={() => folderInputRef.current?.click()}
-              openSettings={() => setView('settings')}
             />
           )}
 
@@ -512,8 +476,14 @@ export function SummaryStudioApp() {
               onBack={() => setView('chats')}
             />
           )}
-        </main>
-      </div>
+
+          {view === 'admin-access' && (
+            <AdminAccessPage
+              onGranted={() => setView('settings')}
+              onBack={() => setView('chats')}
+            />
+          )}
+      </main>
 
       <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileChange} />
       <input
@@ -534,11 +504,11 @@ export function SummaryStudioApp() {
       )}
 
       {helpOpen && (
-        <Modal title="How Summary Studio works" onClose={() => setHelpOpen(false)}>
+        <Modal title="How Document Review works" onClose={() => setHelpOpen(false)}>
           <div className="space-y-4 text-sm leading-6 text-[#695b49]">
-            <p>1. Start a new analysis and attach PDF, text, CSV, JSON, code, or other files.</p>
-            <p>2. Choose AI API for stronger hosted models or Local for an Ollama model on your computer.</p>
-            <p>3. Ask for a summary, comparison, extraction, risk review, or custom report.</p>
+            <p>1. Create an analysis case and attach PDF, text, CSV, JSON, code, or other files.</p>
+            <p>2. Define the report outcome: summary, comparison, extraction, risk review, or a custom request.</p>
+            <p>3. Review the generated report against the original source material.</p>
             <p className="rounded-xl bg-[#f7ead2] p-3 text-xs">Text-based PDFs are extracted automatically. Scanned PDFs are identified as needing OCR; Word, Excel, and image extraction will be expanded next.</p>
           </div>
         </Modal>

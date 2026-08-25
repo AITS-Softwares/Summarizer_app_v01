@@ -1,0 +1,34 @@
+NORTHSTAR FINANCE GROUP
+Client onboarding review brief
+Fictional Demonstration Data - prepared for product presentation only
+
+Purpose
+Northstar Finance Group is preparing a credit and operating-risk review for a proposed middle-market client, Meridian Components Ltd. The review team has collected onboarding notes, a preliminary portfolio extract, and a risk register. This brief gives the review questions that should be answered from the supporting material.
+
+Requested outcome
+Create a concise executive summary for the Credit Review Committee. The summary should describe the client profile, key financial and operating exposures, material open risks, and recommended actions before approval.
+
+Client profile
+Meridian Components Ltd. is a fictional manufacturer of precision assemblies serving transport, energy, and industrial customers. Revenue is concentrated in three customer groups and the business uses a revolving working-capital facility for inventory purchases and seasonal receivables.
+
+Review themes
+1. Revenue concentration: The three largest customer groups account for 58% of annual revenue. Assess whether concentration is acceptable and identify any monitoring actions.
+2. Liquidity: A temporary inventory build is expected before the Q4 delivery cycle. Review the working-capital facility utilisation and any covenant sensitivity.
+3. Financial controls: Monthly management accounts are available, but the August reporting pack was delivered nine business days late. Determine whether this affects reliance on current information.
+4. Supply-chain resilience: Two critical component suppliers are located in the same geographic region. Identify the contingency evidence required before approval.
+5. Data completeness: The current risk register includes items owned by Credit, Operations, Legal, and Relationship Management. Highlight any overdue or unassigned actions.
+
+Decision criteria
+- Escalate any open high-severity item with material financial exposure.
+- Require a documented mitigation owner and target date for every material risk.
+- Flag the application for committee review if projected covenant headroom falls below 15%.
+- Recommend conditions precedent where information is incomplete, stale, or not independently verified.
+
+Suggested prompts for the demo
+- Summarize the attached materials for a credit committee in five bullets.
+- Identify the three most important risks and their recommended mitigations.
+- Compare the onboarding brief with the risk register and point out missing controls.
+- Produce an action tracker with owner, due date, and escalation priority.
+
+Confidentiality note
+All names, figures, exposures, and operational details in this file are fictional. They are designed solely to demonstrate document ingestion, analysis, and reporting workflows.

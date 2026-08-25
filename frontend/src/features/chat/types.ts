@@ -1,5 +1,5 @@
 import type { DragEvent, FormEvent } from 'react'
-import type { ConversationDetails, DocumentItem, ProviderMode } from '../../types'
+import type { ConversationDetails, DocumentItem } from '../../types'
 
 export type SourceItem = DocumentItem | {
   id: string
@@ -12,9 +12,6 @@ export type ChatWorkspaceProps = {
   current: ConversationDetails | null
   pendingFiles: File[]
   prompt: string
-  provider: ProviderMode
-  selectedModel: string
-  modelOptions: string[]
   isLoading: boolean
   isListening: boolean
   editingMessageId: string | null
@@ -22,7 +19,6 @@ export type ChatWorkspaceProps = {
   sourcesOpen: boolean
   allSources: SourceItem[]
   setPrompt: (value: string) => void
-  setModel: (value: string) => void
   setIsDragging: (value: boolean) => void
   setSourcesOpen: (value: boolean) => void
   addFiles: (files: FileList | File[]) => void
@@ -37,5 +33,4 @@ export type ChatWorkspaceProps = {
   reprocessDocument: (id: string) => Promise<void>
   openFiles: () => void
   openFolder: () => void
-  openSettings: () => void
 }

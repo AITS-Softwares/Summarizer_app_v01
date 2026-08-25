@@ -51,13 +51,13 @@ export function SettingsPage({
         <div className="rounded-2xl border border-[#e5d7c0] bg-[#fffefa] p-5 shadow-sm sm:p-7">
           <div className="mb-6 flex items-start gap-4">
             <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#f1ddb8] text-[#a86d1d]"><Settings size={21} /></div>
-            <div><h2 className="text-xl font-bold">AI provider configuration</h2><p className="mt-1 text-xs leading-5 text-[#8f7d64]">Choose between a hosted AI API and local Ollama. API keys are encrypted before storage.</p></div>
+            <div><h2 className="text-xl font-bold">Processing configuration</h2><p className="mt-1 text-xs leading-5 text-[#8f7d64]">Administrator-only connection, credential, and model settings. Credentials are encrypted before storage.</p></div>
           </div>
           <div className="mb-6 grid grid-cols-2 gap-3">
             {(['api', 'local'] as ProviderMode[]).map((mode) => (
               <button type="button" key={mode} className={`provider-card ${settings.providerMode === mode ? 'provider-card-active' : ''}`} onClick={() => setSettings({ ...settings, providerMode: mode })}>
                 {mode === 'api' ? <Cloud size={20} /> : <HardDrive size={20} />}
-                <div className="text-left"><div className="text-sm font-bold">{mode === 'api' ? 'AI API' : 'Local Ollama'}</div><div className="mt-1 text-[10px] text-[#917e62]">{mode === 'api' ? 'Best accuracy and larger models' : 'Offline and no per-request cost'}</div></div>
+                <div className="text-left"><div className="text-sm font-bold">{mode === 'api' ? 'Hosted processing' : 'Local processing'}</div><div className="mt-1 text-[10px] text-[#917e62]">{mode === 'api' ? 'Configured external processing endpoint' : 'Processing service on this computer'}</div></div>
               </button>
             ))}
           </div>
@@ -65,8 +65,8 @@ export function SettingsPage({
             <div className="space-y-5">
               <div>
                 <div className="mb-2 flex items-end justify-between">
-                  <label className="field-label mb-0">Choose an API provider</label>
-                  <span className="text-[9px] text-[#9a866a]">Hosted AI services</span>
+                  <label className="field-label mb-0">Hosted processing endpoint</label>
+                  <span className="text-[9px] text-[#9a866a]">Administrator configuration</span>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {apiProviderPresets.map((preset) => (

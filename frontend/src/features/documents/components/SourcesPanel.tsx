@@ -1,15 +1,12 @@
 import {
   Check,
   CircleAlert,
-  Cloud,
   File,
   FolderOpen,
-  HardDrive,
   Plus,
   RefreshCw,
   X,
 } from 'lucide-react'
-import type { ProviderMode } from '../../../types'
 import {
   canReprocessDocument,
   documentStatusLabel,
@@ -23,7 +20,6 @@ type SourcesPanelProps = {
   open: boolean
   sources: SourceItem[]
   pendingFiles: File[]
-  provider: ProviderMode
   isLoading: boolean
   onClose: () => void
   openFiles: () => void
@@ -34,9 +30,9 @@ type SourcesPanelProps = {
 
 export function SourcesPanel(props: SourcesPanelProps) {
   return (
-    <aside className={`${props.open ? 'fixed inset-y-[72px] right-0 z-20 flex shadow-2xl xl:static xl:z-auto xl:shadow-none' : 'hidden'} w-[310px] shrink-0 flex-col border-l border-[#eadfcd] bg-[#fffefa]`}>
+    <aside className={`${props.open ? 'fixed inset-y-[76px] right-0 z-20 flex shadow-2xl xl:static xl:z-auto xl:shadow-none' : 'hidden'} w-[310px] shrink-0 flex-col border-l border-[#eadfcd] bg-[#fffefa]`}>
       <div className="flex h-14 items-center justify-between border-b border-[#eee4d5] px-4">
-        <div className="flex items-center gap-2 text-[13px] font-bold"><File size={15} className="text-[#b27827]" />Sources<span className="status-tag">{props.sources.length}</span></div>
+        <div className="flex items-center gap-2 text-[13px] font-bold"><File size={15} className="text-[#b27827]" />Source material<span className="status-tag">{props.sources.length}</span></div>
         <button type="button" className="icon-button h-7 w-7" aria-label="Hide sources" title="Hide sources" onClick={props.onClose}><X size={15} /></button>
       </div>
       <div className="flex min-h-0 flex-1 flex-col p-4">
@@ -44,7 +40,7 @@ export function SourcesPanel(props: SourcesPanelProps) {
           <div className="flex flex-1 flex-col items-center justify-center px-4 text-center">
             <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#f5ead8] text-[#ae7628]"><FolderOpen size={21} /></div>
             <h3 className="mt-4 text-[13px] font-bold">No sources added</h3>
-            <p className="mt-2 text-[11px] leading-5 text-[#98866d]">Attach documents or an entire folder to start an analysis.</p>
+            <p className="mt-2 text-[11px] leading-5 text-[#98866d]">Attach documents or an entire folder to begin an analysis case.</p>
             <button type="button" className="secondary-button mt-5" onClick={props.openFiles}><Plus size={14} />Add documents</button>
           </div>
         ) : (
@@ -75,15 +71,6 @@ export function SourcesPanel(props: SourcesPanelProps) {
             })}
           </div>
         )}
-      </div>
-      <div className="border-t border-[#eee4d5] p-4">
-        <div className="rounded-xl bg-[#f8efdf] p-3">
-          <div className="flex items-center gap-2 text-[11px] font-bold text-[#72552c]">
-            {props.provider === 'api' ? <Cloud size={14} /> : <HardDrive size={14} />}
-            {props.provider === 'api' ? 'API-powered analysis' : 'Private local analysis'}
-          </div>
-          <p className="mt-1.5 text-[9px] leading-4 text-[#947f61]">{props.provider === 'api' ? 'Uses your configured hosted model for best accuracy.' : 'Uses the Ollama service running on this computer.'}</p>
-        </div>
       </div>
     </aside>
   )
