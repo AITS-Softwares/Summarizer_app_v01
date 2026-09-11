@@ -80,6 +80,53 @@ namespace Summarizer.Api.Data.Migrations
                     b.ToTable("Conversations");
                 });
 
+            modelBuilder.Entity("Summarizer.Api.Models.EntityMapping", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("EntityName")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("EntityTypeCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Heading")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("Priority")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IsActive", "Heading", "EntityName");
+
+                    b.ToTable("EntityMappings");
+                });
+
             modelBuilder.Entity("Summarizer.Api.Models.ProviderSettings", b =>
                 {
                     b.Property<int>("Id")

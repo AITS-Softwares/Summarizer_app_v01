@@ -9,6 +9,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<ChatMessage> Messages => Set<ChatMessage>();
     public DbSet<StoredDocument> Documents => Set<StoredDocument>();
     public DbSet<ProviderSettings> ProviderSettings => Set<ProviderSettings>();
+    public DbSet<EntityMapping> EntityMappings => Set<EntityMapping>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -57,6 +58,15 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
                 LocalModel = "qwen3:8b",
                 UpdatedAtUtc = new DateTime(2026, 6, 15, 0, 0, 0, DateTimeKind.Utc)
             });
+        });
+
+        modelBuilder.Entity<EntityMapping>(entity =>
+        {
+            entity.Property(item => item.Heading).HasMaxLength(120);
+            entity.Property(item => item.EntityName).HasMaxLength(300);
+            entity.Property(item => item.EntityTypeCode).HasMaxLength(20);
+            entity.Property(item => item.Description).HasMaxLength(500);
+            entity.HasIndex(item => new { item.IsActive, item.Heading, item.EntityName });
         });
     }
 }

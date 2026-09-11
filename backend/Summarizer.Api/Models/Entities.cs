@@ -48,3 +48,17 @@ public sealed class ProviderSettings
     public string LocalModel { get; set; } = "qwen3:8b";
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
 }
+
+public sealed class EntityMapping
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Heading { get; set; } = string.Empty;
+    public string EntityName { get; set; } = string.Empty;
+    public string EntityTypeCode { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public int Priority { get; set; } = 100;
+    public bool IsActive { get; set; } = true;
+    public int Version { get; set; } = 1;
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+}

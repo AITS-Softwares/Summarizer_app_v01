@@ -3,11 +3,14 @@ import type {
   ConversationDetails,
   ConversationSummary,
   DocumentItem,
+  EntityMapping,
+  EntityMappingImportResult,
   HealthStatus,
   LibraryDocument,
   ProviderMode,
   ProviderSettings,
   ProviderTestResult,
+  SaveEntityMapping,
 } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL ?? ''
@@ -54,6 +57,16 @@ export const api = {
   deleteDocument: (id: string) => request<void>(`/api/documents/${id}`, { method: 'DELETE' }),
   reprocessDocument: (id: string) =>
     request<DocumentItem>(`/api/documents/${id}/reprocess`, { method: 'POST' }),
+  entityMappings: () => request<EntityMapping[]>('/api/entity-mappings'),
+  createEntityMapping: (mapping: SaveEntityMapping) =>
+    request<EntityMapping>('/api/entity-mappings', { method: 'POST', body: JSON.stringify(mapping) }),
+  updateEntityMapping: (id: string, mapping: SaveEntityMapping) =>
+    request<EntityMapping>(`/api/entity-mappings/${id}`, { method: 'PUT', body: JSON.stringify(mapping) }),
+  bulkImportEntityMappings: (file: File) => {
+    const body = new FormData()
+    body.append('file', file)
+    return request<EntityMappingImportResult>('/api/entity-mappings/bulk-import', { method: 'POST', body })
+  },
   analyze: (
     conversationId: string | null,
     prompt: string,

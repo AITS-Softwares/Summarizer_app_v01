@@ -61,3 +61,21 @@ public sealed record UpdateProviderSettingsRequest(
     string LocalBaseUrl,
     string LocalModel);
 public sealed record ProviderTestResponse(bool Success, string Message, string Provider, string Endpoint);
+public sealed record EntityMappingResponse(
+    Guid Id,
+    string Heading,
+    string EntityName,
+    string EntityTypeCode,
+    string? Description,
+    int Priority,
+    bool IsActive,
+    int Version,
+    DateTime UpdatedAtUtc);
+public sealed record SaveEntityMappingRequest(
+    string Heading,
+    string EntityName,
+    string EntityTypeCode,
+    string? Description,
+    int Priority,
+    bool IsActive);
+public sealed record EntityMappingImportResponse(int Created, int Updated, int Skipped, IReadOnlyCollection<string> Errors);

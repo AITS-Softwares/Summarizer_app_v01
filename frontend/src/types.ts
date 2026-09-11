@@ -1,5 +1,5 @@
 export type ProviderMode = 'api' | 'local'
-export type ViewName = 'chats' | 'library' | 'reports' | 'admin-access' | 'settings'
+export type ViewName = 'chats' | 'library' | 'reports' | 'admin-access' | 'settings' | 'entity-master'
 
 export type ConversationSummary = {
   id: string
@@ -70,4 +70,25 @@ export type AnalysisResponse = {
   userMessage: Message
   assistantMessage: Message
   requiresConfiguration: boolean
+}
+
+export type EntityMapping = {
+  id: string
+  heading: string
+  entityName: string
+  entityTypeCode: string
+  description: string | null
+  priority: number
+  isActive: boolean
+  version: number
+  updatedAtUtc: string
+}
+
+export type SaveEntityMapping = Omit<EntityMapping, 'id' | 'version' | 'updatedAtUtc'>
+
+export type EntityMappingImportResult = {
+  created: number
+  updated: number
+  skipped: number
+  errors: string[]
 }

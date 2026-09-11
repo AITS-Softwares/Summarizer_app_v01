@@ -1,4 +1,4 @@
-import { Archive, Clock3, Library, LockKeyhole, Search, SquarePen, Trash2 } from 'lucide-react'
+import { Archive, BookMarked, Clock3, Library, LockKeyhole, Search, SquarePen, Trash2 } from 'lucide-react'
 import type { ConversationSummary, ViewName } from '../../types'
 
 type AppSidebarProps = {
@@ -15,6 +15,7 @@ export function AppSidebar(props: AppSidebarProps) {
           <button type="button" className={tabClass(props.view === 'chats')} onClick={() => props.navigate('chats')}><SquarePen size={14} />Cases</button>
           <button type="button" className={tabClass(props.view === 'library')} onClick={() => props.navigate('library')}><Library size={14} />Library <span className="rounded-md bg-[#f3e8d7] px-1.5 py-0.5 text-[9px]">{props.documentCount}</span></button>
           <button type="button" className={tabClass(props.view === 'reports')} onClick={() => props.navigate('reports')}><Archive size={14} />Reports <span className="rounded-md bg-[#f3e8d7] px-1.5 py-0.5 text-[9px]">{props.archivedCount}</span></button>
+          <button type="button" className={tabClass(props.view === 'entity-master')} onClick={() => props.navigate('entity-master')}><BookMarked size={14} /><span className="hidden lg:inline">Entity master</span><span className="lg:hidden">Master</span></button>
           <button type="button" className={tabClass(props.view === 'admin-access' || props.view === 'settings')} onClick={() => props.navigate('admin-access')} title="Administration"><LockKeyhole size={14} /><span className="hidden 2xl:inline">Administration</span></button>
         </div>
         <div className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl border border-[#e5d7c0] bg-[#fffaf2] px-3 py-2 shadow-[0_3px_10px_rgba(88,58,24,0.04)]">

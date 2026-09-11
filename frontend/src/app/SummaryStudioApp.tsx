@@ -23,6 +23,7 @@ import { DocumentLibraryPage } from '../features/documents/DocumentLibraryPage'
 import { ReportsPage } from '../features/reports/ReportsPage'
 import { SettingsPage } from '../features/settings/SettingsPage'
 import { AdminAccessPage } from '../features/settings/AdminAccessPage'
+import { EntityMasterPage } from '../features/settings/EntityMasterPage'
 import type {
   ConversationDetails,
   ConversationSummary,
@@ -475,6 +476,10 @@ export function SummaryStudioApp() {
               onTest={testProvider}
               onBack={() => setView('chats')}
             />
+          )}
+
+          {view === 'entity-master' && (
+            <EntityMasterPage onNotice={setNotice} />
           )}
 
           {view === 'admin-access' && (
