@@ -10,13 +10,18 @@ namespace Summarizer.Api.Controllers;
 
 [ApiController]
 [Route("api/analysis")]
-public sealed class AnalysisController(AppDbContext dbContext, AiProviderService aiProviderService) : ControllerBase
+public sealed class AnalysisController(AppDbContext dbContext, AiProviderService aiProviderService, IConfiguration configuration) : ControllerBase
 {
     [HttpPost]
     public async Task<ActionResult<AnalysisResponse>> Analyze(
         AnalysisRequest request,
         CancellationToken cancellationToken)
     {
+        if (configuration.GetValue("ClientWorkflow:RestrictGenericAnalysis", true))
+        {
+            return BadRequest("Generic chat analysis is disabled in client workflow mode. Use Template Processing instead.");
+        }
+
         if (string.IsNullOrWhiteSpace(request.Prompt))
         {
             return BadRequest("Prompt is required.");

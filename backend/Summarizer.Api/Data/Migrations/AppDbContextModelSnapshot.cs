@@ -127,6 +127,57 @@ namespace Summarizer.Api.Data.Migrations
                     b.ToTable("EntityMappings");
                 });
 
+            modelBuilder.Entity("Summarizer.Api.Models.ScreeningRow", b =>
+                {
+                    b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uniqueidentifier");
+                    b.Property<decimal>("Confidence").HasPrecision(5, 4).HasColumnType("decimal(5,4)");
+                    b.Property<string>("EntityName").HasMaxLength(300).HasColumnType("nvarchar(300)");
+                    b.Property<string>("EntityTypeCode").HasMaxLength(20).HasColumnType("nvarchar(20)");
+                    b.Property<string>("ExtractedFieldsJson").IsRequired().HasColumnType("nvarchar(max)");
+                    b.Property<string>("Heading").IsRequired().HasMaxLength(120).HasColumnType("nvarchar(120)");
+                    b.Property<Guid>("ScreeningRunId").HasColumnType("uniqueidentifier");
+                    b.Property<string>("SourceFileName").HasMaxLength(260).HasColumnType("nvarchar(260)");
+                    b.Property<int?>("SourcePageNumber").HasColumnType("int");
+                    b.Property<string>("Status").IsRequired().HasMaxLength(40).HasColumnType("nvarchar(40)");
+                    b.Property<int>("TemplateRowNumber").HasColumnType("int");
+                    b.Property<DateTime>("UpdatedAtUtc").HasColumnType("datetime2");
+                    b.HasKey("Id");
+                    b.HasIndex("ScreeningRunId", "TemplateRowNumber").IsUnique();
+                    b.ToTable("ScreeningRows");
+                });
+
+            modelBuilder.Entity("Summarizer.Api.Models.ScreeningRun", b =>
+                {
+                    b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uniqueidentifier");
+                    b.Property<DateTime>("CreatedAtUtc").HasColumnType("datetime2");
+                    b.Property<string>("OutputPath").HasColumnType("nvarchar(max)");
+                    b.Property<string>("ProcessingMessage").HasMaxLength(1000).HasColumnType("nvarchar(1000)");
+                    b.Property<string>("SourceFilesJson").IsRequired().HasColumnType("nvarchar(max)");
+                    b.Property<string>("Status").IsRequired().HasMaxLength(40).HasColumnType("nvarchar(40)");
+                    b.Property<Guid>("TemplateId").HasColumnType("uniqueidentifier");
+                    b.Property<DateTime>("UpdatedAtUtc").HasColumnType("datetime2");
+                    b.HasKey("Id");
+                    b.HasIndex("TemplateId");
+                    b.ToTable("ScreeningRuns");
+                });
+
+            modelBuilder.Entity("Summarizer.Api.Models.ScreeningTemplate", b =>
+                {
+                    b.Property<Guid>("Id").ValueGeneratedOnAdd().HasColumnType("uniqueidentifier");
+                    b.Property<DateTime>("CreatedAtUtc").HasColumnType("datetime2");
+                    b.Property<int>("HeaderRowNumber").HasColumnType("int");
+                    b.Property<bool>("IsActive").HasColumnType("bit");
+                    b.Property<string>("Name").IsRequired().HasMaxLength(150).HasColumnType("nvarchar(150)");
+                    b.Property<string>("OriginalName").IsRequired().HasMaxLength(260).HasColumnType("nvarchar(260)");
+                    b.Property<string>("RowsJson").IsRequired().HasColumnType("nvarchar(max)");
+                    b.Property<string>("StoragePath").IsRequired().HasColumnType("nvarchar(max)");
+                    b.Property<string>("Version").IsRequired().HasMaxLength(50).HasColumnType("nvarchar(50)");
+                    b.Property<string>("WorksheetName").IsRequired().HasColumnType("nvarchar(max)");
+                    b.HasKey("Id");
+                    b.HasIndex("IsActive");
+                    b.ToTable("ScreeningTemplates");
+                });
+
             modelBuilder.Entity("Summarizer.Api.Models.ProviderSettings", b =>
                 {
                     b.Property<int>("Id")
@@ -244,8 +295,8 @@ namespace Summarizer.Api.Data.Migrations
                 });
 
             modelBuilder.Entity("Summarizer.Api.Models.StoredDocument", b =>
-                {
-                    b.HasOne("Summarizer.Api.Models.Conversation", "Conversation")
+            {
+                b.HasOne("Summarizer.Api.Models.Conversation", "Conversation")
                         .WithMany("Documents")
                         .HasForeignKey("ConversationId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -254,11 +305,36 @@ namespace Summarizer.Api.Data.Migrations
                     b.Navigation("Conversation");
                 });
 
-            modelBuilder.Entity("Summarizer.Api.Models.Conversation", b =>
+            modelBuilder.Entity("Summarizer.Api.Models.ScreeningRow", b =>
                 {
-                    b.Navigation("Documents");
+                    b.HasOne("Summarizer.Api.Models.ScreeningRun", "ScreeningRun")
+                        .WithMany("Rows")
+                        .HasForeignKey("ScreeningRunId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                    b.Navigation("ScreeningRun");
+                });
 
-                    b.Navigation("Messages");
+            modelBuilder.Entity("Summarizer.Api.Models.ScreeningRun", b =>
+                {
+                    b.HasOne("Summarizer.Api.Models.ScreeningTemplate", "Template")
+                        .WithMany()
+                        .HasForeignKey("TemplateId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                    b.Navigation("Template");
+                });
+
+            modelBuilder.Entity("Summarizer.Api.Models.Conversation", b =>
+            {
+                b.Navigation("Documents");
+
+                b.Navigation("Messages");
+            });
+
+            modelBuilder.Entity("Summarizer.Api.Models.ScreeningRun", b =>
+                {
+                    b.Navigation("Rows");
                 });
 #pragma warning restore 612, 618
         }

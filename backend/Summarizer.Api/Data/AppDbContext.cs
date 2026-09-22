@@ -10,6 +10,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<StoredDocument> Documents => Set<StoredDocument>();
     public DbSet<ProviderSettings> ProviderSettings => Set<ProviderSettings>();
     public DbSet<EntityMapping> EntityMappings => Set<EntityMapping>();
+    public DbSet<ScreeningTemplate> ScreeningTemplates => Set<ScreeningTemplate>();
+    public DbSet<ScreeningRun> ScreeningRuns => Set<ScreeningRun>();
+    public DbSet<ScreeningRow> ScreeningRows => Set<ScreeningRow>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -67,6 +70,40 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(item => item.EntityTypeCode).HasMaxLength(20);
             entity.Property(item => item.Description).HasMaxLength(500);
             entity.HasIndex(item => new { item.IsActive, item.Heading, item.EntityName });
+        });
+
+        modelBuilder.Entity<ScreeningTemplate>(entity =>
+        {
+            entity.Property(item => item.Name).HasMaxLength(150);
+            entity.Property(item => item.Version).HasMaxLength(50);
+            entity.Property(item => item.OriginalName).HasMaxLength(260);
+            entity.HasIndex(item => item.IsActive);
+        });
+
+        modelBuilder.Entity<ScreeningRun>(entity =>
+        {
+            entity.Property(item => item.Status).HasMaxLength(40);
+            entity.Property(item => item.ProcessingMessage).HasMaxLength(1000);
+            entity.HasOne(item => item.Template)
+                .WithMany()
+                .HasForeignKey(item => item.TemplateId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<ScreeningRow>(entity =>
+        {
+            entity.Property(item => item.Heading).HasMaxLength(120);
+            entity.Property(item => item.EntityName).HasMaxLength(300);
+            entity.Property(item => item.EntityTypeCode).HasMaxLength(20);
+            entity.Property(item => item.ExtractedFieldsJson).HasColumnType("nvarchar(max)");
+            entity.Property(item => item.SourceFileName).HasMaxLength(260);
+            entity.Property(item => item.Status).HasMaxLength(40);
+            entity.Property(item => item.Confidence).HasPrecision(5, 4);
+            entity.HasIndex(item => new { item.ScreeningRunId, item.TemplateRowNumber }).IsUnique();
+            entity.HasOne(item => item.ScreeningRun)
+                .WithMany(item => item.Rows)
+                .HasForeignKey(item => item.ScreeningRunId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

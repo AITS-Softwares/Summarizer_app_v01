@@ -1,5 +1,5 @@
 export type ProviderMode = 'api' | 'local'
-export type ViewName = 'chats' | 'library' | 'reports' | 'admin-access' | 'settings' | 'entity-master'
+export type ViewName = 'processing' | 'chats' | 'library' | 'reports' | 'admin-access' | 'settings'
 
 export type ConversationSummary = {
   id: string
@@ -91,4 +91,39 @@ export type EntityMappingImportResult = {
   updated: number
   skipped: number
   errors: string[]
+}
+
+export type ScreeningTemplate = {
+  id: string
+  name: string
+  version: string
+  originalName: string
+  worksheetName: string
+  rowCount: number
+  isActive: boolean
+  createdAtUtc: string
+}
+
+export type ScreeningRow = {
+  id: string
+  templateRowNumber: number
+  heading: string
+  entityName: string | null
+  entityTypeCode: string | null
+  fields: Record<string, string>
+  sourceFileName: string | null
+  sourcePageNumber: number | null
+  confidence: number
+  status: string
+}
+
+export type ScreeningRun = {
+  id: string
+  templateId: string
+  templateName: string
+  status: string
+  processingMessage: string | null
+  sourceFiles: string[]
+  createdAtUtc: string
+  rows: ScreeningRow[]
 }

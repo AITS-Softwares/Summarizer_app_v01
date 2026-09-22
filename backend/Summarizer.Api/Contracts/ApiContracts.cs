@@ -64,7 +64,6 @@ public sealed record ProviderTestResponse(bool Success, string Message, string P
 public sealed record EntityMappingResponse(
     Guid Id,
     string Heading,
-    string EntityName,
     string EntityTypeCode,
     string? Description,
     int Priority,
@@ -73,9 +72,13 @@ public sealed record EntityMappingResponse(
     DateTime UpdatedAtUtc);
 public sealed record SaveEntityMappingRequest(
     string Heading,
-    string EntityName,
     string EntityTypeCode,
     string? Description,
     int Priority,
     bool IsActive);
 public sealed record EntityMappingImportResponse(int Created, int Updated, int Skipped, IReadOnlyCollection<string> Errors);
+public sealed record DeleteEntityMappingsRequest(IReadOnlyCollection<Guid> Ids);
+public sealed record ScreeningTemplateResponse(Guid Id, string Name, string Version, string OriginalName, string WorksheetName, int RowCount, bool IsActive, DateTime CreatedAtUtc);
+public sealed record ScreeningRowResponse(Guid Id, int TemplateRowNumber, string Heading, string? EntityName, string? EntityTypeCode, IReadOnlyDictionary<string, string> Fields, string? SourceFileName, int? SourcePageNumber, decimal Confidence, string Status);
+public sealed record ScreeningRunResponse(Guid Id, Guid TemplateId, string TemplateName, string Status, string? ProcessingMessage, IReadOnlyCollection<string> SourceFiles, DateTime CreatedAtUtc, IReadOnlyCollection<ScreeningRowResponse> Rows);
+public sealed record UpdateScreeningRowRequest(string? EntityName, string? EntityTypeCode, string Status);

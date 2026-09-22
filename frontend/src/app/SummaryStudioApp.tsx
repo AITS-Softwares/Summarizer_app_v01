@@ -23,7 +23,7 @@ import { DocumentLibraryPage } from '../features/documents/DocumentLibraryPage'
 import { ReportsPage } from '../features/reports/ReportsPage'
 import { SettingsPage } from '../features/settings/SettingsPage'
 import { AdminAccessPage } from '../features/settings/AdminAccessPage'
-import { EntityMasterPage } from '../features/settings/EntityMasterPage'
+import { TemplateProcessingPage } from '../features/processing/TemplateProcessingPage'
 import type {
   ConversationDetails,
   ConversationSummary,
@@ -57,10 +57,12 @@ type SpeechRecognitionInstance = {
   stop: () => void
 }
 
+const clientWorkflowOnly = import.meta.env.VITE_CLIENT_WORKFLOW_ONLY !== 'false'
+
 export function SummaryStudioApp() {
   const [sourcesOpen, setSourcesOpen] = useState(() => window.innerWidth >= 1280)
-  const [workbenchOpen, setWorkbenchOpen] = useState(false)
-  const [view, setView] = useState<ViewName>('chats')
+  const [workbenchOpen, setWorkbenchOpen] = useState(clientWorkflowOnly)
+  const [view, setView] = useState<ViewName>(clientWorkflowOnly ? 'processing' : 'chats')
   const [provider, setProvider] = useState<ProviderMode>('api')
   const [settings, setSettings] = useState<ProviderSettings>(defaultSettings)
   const [apiKey, setApiKey] = useState('')
@@ -408,6 +410,7 @@ export function SummaryStudioApp() {
             documentCount={libraryDocuments.length}
             search={search}
             isBooting={isBooting}
+            clientWorkflowOnly={clientWorkflowOnly}
             setSearch={setSearch}
             navigate={navigate}
             startNewAnalysis={startNewAnalysis}
@@ -444,6 +447,8 @@ export function SummaryStudioApp() {
             />
           )}
 
+          {view === 'processing' && <TemplateProcessingPage onNotice={setNotice} />}
+
           {view === 'library' && (
             <DocumentLibraryPage
               documents={libraryDocuments}
@@ -476,10 +481,6 @@ export function SummaryStudioApp() {
               onTest={testProvider}
               onBack={() => setView('chats')}
             />
-          )}
-
-          {view === 'entity-master' && (
-            <EntityMasterPage onNotice={setNotice} />
           )}
 
           {view === 'admin-access' && (

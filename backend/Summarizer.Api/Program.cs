@@ -15,6 +15,8 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(conn
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<AiProviderService>();
 builder.Services.AddScoped<DocumentTextExtractor>();
+builder.Services.AddScoped<ScreeningProcessorService>();
+builder.Services.AddScoped<VisionScreeningExtractor>();
 
 var dataProtectionPath = Path.GetFullPath(
     builder.Configuration["Storage:DataProtectionPath"] ?? "../storage/keys",

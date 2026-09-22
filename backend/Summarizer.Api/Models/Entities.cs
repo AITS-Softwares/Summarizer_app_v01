@@ -62,3 +62,48 @@ public sealed class EntityMapping
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
 }
+
+public sealed class ScreeningTemplate
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Name { get; set; } = "World Check";
+    public string Version { get; set; } = "v1";
+    public string OriginalName { get; set; } = string.Empty;
+    public string StoragePath { get; set; } = string.Empty;
+    public string WorksheetName { get; set; } = string.Empty;
+    public int HeaderRowNumber { get; set; }
+    public string RowsJson { get; set; } = "[]";
+    public bool IsActive { get; set; } = true;
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+}
+
+public sealed class ScreeningRun
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid TemplateId { get; set; }
+    public ScreeningTemplate Template { get; set; } = null!;
+    public string Status { get; set; } = "review-required";
+    public string? ProcessingMessage { get; set; }
+    public string SourceFilesJson { get; set; } = "[]";
+    public string? OutputPath { get; set; }
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+    public ICollection<ScreeningRow> Rows { get; set; } = [];
+}
+
+public sealed class ScreeningRow
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ScreeningRunId { get; set; }
+    public ScreeningRun ScreeningRun { get; set; } = null!;
+    public int TemplateRowNumber { get; set; }
+    public string Heading { get; set; } = string.Empty;
+    public string? EntityName { get; set; }
+    public string? EntityTypeCode { get; set; }
+    public string ExtractedFieldsJson { get; set; } = "{}";
+    public string? SourceFileName { get; set; }
+    public int? SourcePageNumber { get; set; }
+    public decimal Confidence { get; set; }
+    public string Status { get; set; } = "needs-review";
+    public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+}

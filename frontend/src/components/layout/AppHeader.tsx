@@ -6,7 +6,7 @@ import { StatusPill } from '../shared/StatusPill'
 type AppHeaderProps = { view: ViewName; title?: string; health: HealthStatus | null; sourcesOpen: boolean; workbenchOpen: boolean; canSaveReport: boolean; archiveCurrent: () => Promise<void>; toggleSources: () => void; toggleWorkbench: () => void; openHelp: () => void }
 
 export function AppHeader(props: AppHeaderProps) {
-  const title = props.view === 'chats' ? props.title ?? 'New analysis case' : props.view === 'library' ? 'Document library' : props.view === 'reports' ? 'Saved reports' : props.view === 'entity-master' ? 'Entity master' : props.view === 'admin-access' ? 'Administration access' : 'Processing configuration'
+  const title = props.view === 'processing' ? 'Template processing' : props.view === 'chats' ? props.title ?? 'New analysis case' : props.view === 'library' ? 'Document library' : props.view === 'reports' ? 'Saved reports' : props.view === 'admin-access' ? 'Administration access' : 'Processing configuration'
   return (
     <header className="flex h-[76px] shrink-0 items-center gap-4 border-b border-[#eadfcd] bg-[#fffdf8] px-4 sm:px-6">
       <Brand />

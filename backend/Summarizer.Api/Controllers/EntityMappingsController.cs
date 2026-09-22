@@ -21,7 +21,6 @@ public sealed class EntityMappingsController(AppDbContext dbContext) : Controlle
             .OrderByDescending(item => item.IsActive)
             .ThenBy(item => item.Heading)
             .ThenBy(item => item.Priority)
-            .ThenBy(item => item.EntityName)
             .Select(item => ToResponse(item))
             .ToListAsync(cancellationToken);
     }
@@ -60,10 +59,31 @@ public sealed class EntityMappingsController(AppDbContext dbContext) : Controlle
         return Ok(ToResponse(mapping));
     }
 
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        var mapping = await dbContext.EntityMappings.FindAsync([id], cancellationToken);
+        if (mapping is null) return NotFound();
+        dbContext.EntityMappings.Remove(mapping);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return NoContent();
+    }
+
+    [HttpPost("bulk-delete")]
+    public async Task<ActionResult<int>> BulkDelete(DeleteEntityMappingsRequest request, CancellationToken cancellationToken)
+    {
+        var ids = request.Ids.Distinct().ToArray();
+        if (ids.Length == 0) return BadRequest("Select at least one entity rule.");
+        var mappings = await dbContext.EntityMappings.Where(item => ids.Contains(item.Id)).ToListAsync(cancellationToken);
+        dbContext.EntityMappings.RemoveRange(mappings);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return Ok(mappings.Count);
+    }
+
     [HttpGet("import-template")]
     public IActionResult DownloadImportTemplate()
     {
-        const string csv = "Heading,Name*,Alternate Name(s),Case ID,Entity Type*,Gender,Date of Birth,Country Location,Place of Birth,Citizenship,Registered Country,IMO Number,Identification Number(s)\r\nBeneficiary,PT ACINTYA GLOBAL LOGISTIK,,,O,,,,,,,,\r\n";
+        const string csv = "Heading,Entity Type*,Description,Priority,Status\r\nBENEFICIARY'S NAME,O,Organisation,100,Active\r\n";
         return File(System.Text.Encoding.UTF8.GetBytes(csv), "text/csv", "entity-master-import-template.csv");
     }
 
@@ -95,7 +115,7 @@ public sealed class EntityMappingsController(AppDbContext dbContext) : Controlle
 
         var existing = await dbContext.EntityMappings.ToListAsync(cancellationToken);
         var existingByKey = existing
-            .GroupBy(item => ToKey(item.Heading, item.EntityName), StringComparer.OrdinalIgnoreCase)
+            .GroupBy(item => ToKey(item.Heading), StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.OrderByDescending(item => item.Version).First(), StringComparer.OrdinalIgnoreCase);
         var errors = new List<string>();
         var created = 0;
@@ -104,15 +124,15 @@ public sealed class EntityMappingsController(AppDbContext dbContext) : Controlle
 
         foreach (var row in importedRows)
         {
-            if (string.IsNullOrWhiteSpace(row.Heading) && string.IsNullOrWhiteSpace(row.EntityName) && string.IsNullOrWhiteSpace(row.EntityTypeCode)) continue;
-            if (string.IsNullOrWhiteSpace(row.Heading) || string.IsNullOrWhiteSpace(row.EntityName) || string.IsNullOrWhiteSpace(row.EntityTypeCode))
+            if (string.IsNullOrWhiteSpace(row.Heading) && string.IsNullOrWhiteSpace(row.EntityTypeCode)) continue;
+            if (string.IsNullOrWhiteSpace(row.Heading) || string.IsNullOrWhiteSpace(row.EntityTypeCode))
             {
                 skipped++;
-                errors.Add($"Row {row.RowNumber}: Heading, Name*, and Entity Type* are required.");
+                errors.Add($"Row {row.RowNumber}: Heading and Entity Type* are required.");
                 continue;
             }
 
-            var key = ToKey(row.Heading, row.EntityName);
+            var key = ToKey(row.Heading);
             if (existingByKey.TryGetValue(key, out var mapping))
             {
                 mapping.EntityTypeCode = row.EntityTypeCode;
@@ -128,7 +148,7 @@ public sealed class EntityMappingsController(AppDbContext dbContext) : Controlle
             mapping = new EntityMapping
             {
                 Heading = row.Heading,
-                EntityName = row.EntityName,
+                EntityName = string.Empty,
                 EntityTypeCode = row.EntityTypeCode,
                 Description = row.Description,
                 Priority = row.Priority,
@@ -146,7 +166,6 @@ public sealed class EntityMappingsController(AppDbContext dbContext) : Controlle
     private static string? Validate(SaveEntityMappingRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Heading)) return "Heading is required.";
-        if (string.IsNullOrWhiteSpace(request.EntityName)) return "Entity name is required.";
         if (string.IsNullOrWhiteSpace(request.EntityTypeCode)) return "Entity type code is required.";
         if (request.Priority is < 0 or > 10_000) return "Priority must be between 0 and 10,000.";
         return null;
@@ -155,7 +174,7 @@ public sealed class EntityMappingsController(AppDbContext dbContext) : Controlle
     private static void Apply(EntityMapping mapping, SaveEntityMappingRequest request)
     {
         mapping.Heading = request.Heading.Trim();
-        mapping.EntityName = request.EntityName.Trim();
+        mapping.EntityName = string.Empty;
         mapping.EntityTypeCode = request.EntityTypeCode.Trim().ToUpperInvariant();
         mapping.Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim();
         mapping.Priority = request.Priority;
@@ -177,9 +196,9 @@ public sealed class EntityMappingsController(AppDbContext dbContext) : Controlle
             if (!string.IsNullOrWhiteSpace(value)) headers[NormalizeHeader(value)] = column;
         }
 
-        if (!headers.ContainsKey("heading") || !headers.ContainsKey("name") || !headers.ContainsKey("entitytype"))
+        if (!headers.ContainsKey("heading") || !headers.ContainsKey("entitytype"))
         {
-            throw new HeaderException("The import needs the client template columns Heading, Name*, and Entity Type*.");
+            throw new HeaderException("The import needs Heading and Entity Type* columns.");
         }
 
         var rows = new List<ImportedMapping>();
@@ -190,7 +209,7 @@ public sealed class EntityMappingsController(AppDbContext dbContext) : Controlle
             rows.Add(new ImportedMapping(
                 rowNumber,
                 ReadCell(reader, headers, "heading"),
-                ReadCell(reader, headers, "name"),
+                string.Empty,
                 ReadCell(reader, headers, "entitytype").ToUpperInvariant(),
                 ReadCell(reader, headers, "description", allowMissing: true),
                 ParsePriority(ReadCell(reader, headers, "priority", allowMissing: true)),
@@ -219,7 +238,7 @@ public sealed class EntityMappingsController(AppDbContext dbContext) : Controlle
         .Select(char.ToLowerInvariant)
         .ToArray());
 
-    private static string ToKey(string heading, string entityName) => $"{heading.Trim()}\u001f{entityName.Trim()}";
+    private static string ToKey(string heading) => heading.Trim();
 
     private sealed record ImportedMapping(int RowNumber, string Heading, string EntityName, string EntityTypeCode, string? Description, int Priority, bool IsActive);
     private sealed class HeaderException(string message) : Exception(message);
@@ -227,7 +246,6 @@ public sealed class EntityMappingsController(AppDbContext dbContext) : Controlle
     private static EntityMappingResponse ToResponse(EntityMapping mapping) => new(
         mapping.Id,
         mapping.Heading,
-        mapping.EntityName,
         mapping.EntityTypeCode,
         mapping.Description,
         mapping.Priority,

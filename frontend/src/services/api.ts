@@ -11,6 +11,8 @@ import type {
   ProviderSettings,
   ProviderTestResult,
   SaveEntityMapping,
+  ScreeningRun,
+  ScreeningTemplate,
 } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL ?? ''
@@ -31,6 +33,12 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
+}
+
+async function requestBlob(path: string, options?: RequestInit): Promise<Blob> {
+  const response = await fetch(`${API_URL}${path}`, options)
+  if (!response.ok) throw new Error((await response.text()) || `Request failed with status ${response.status}`)
+  return response.blob()
 }
 
 export const api = {
@@ -62,11 +70,32 @@ export const api = {
     request<EntityMapping>('/api/entity-mappings', { method: 'POST', body: JSON.stringify(mapping) }),
   updateEntityMapping: (id: string, mapping: SaveEntityMapping) =>
     request<EntityMapping>(`/api/entity-mappings/${id}`, { method: 'PUT', body: JSON.stringify(mapping) }),
+  deleteEntityMapping: (id: string) => request<void>(`/api/entity-mappings/${id}`, { method: 'DELETE' }),
+  bulkDeleteEntityMappings: (ids: string[]) => request<number>('/api/entity-mappings/bulk-delete', { method: 'POST', body: JSON.stringify({ ids }) }),
   bulkImportEntityMappings: (file: File) => {
     const body = new FormData()
     body.append('file', file)
     return request<EntityMappingImportResult>('/api/entity-mappings/bulk-import', { method: 'POST', body })
   },
+  screeningTemplates: () => request<ScreeningTemplate[]>('/api/screening/templates'),
+  registerScreeningTemplate: (name: string, version: string, file: File) => {
+    const body = new FormData()
+    body.append('name', name)
+    body.append('version', version)
+    body.append('file', file)
+    return request<ScreeningTemplate>('/api/screening/templates', { method: 'POST', body })
+  },
+  createScreeningRun: (templateId: string, files: File[]) => {
+    const body = new FormData()
+    body.append('templateId', templateId)
+    files.forEach((file) => body.append('files', file))
+    return request<ScreeningRun>('/api/screening/runs', { method: 'POST', body })
+  },
+  screeningRun: (id: string) => request<ScreeningRun>(`/api/screening/runs/${id}`),
+  approveReadyScreeningRows: (id: string) => request<ScreeningRun>(`/api/screening/runs/${id}/approve-ready`, { method: 'POST' }),
+  updateScreeningRow: (runId: string, rowId: string, entityName: string, entityTypeCode: string, status = 'reviewed') =>
+    request<ScreeningRun>(`/api/screening/runs/${runId}/rows/${rowId}`, { method: 'PATCH', body: JSON.stringify({ entityName, entityTypeCode, status }) }),
+  exportScreeningRun: (id: string) => requestBlob(`/api/screening/runs/${id}/export`, { method: 'POST' }),
   analyze: (
     conversationId: string | null,
     prompt: string,

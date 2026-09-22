@@ -1,9 +1,9 @@
-import { Archive, BookMarked, Clock3, Library, LockKeyhole, Search, SquarePen, Trash2 } from 'lucide-react'
+import { Archive, Clock3, Library, LockKeyhole, ScanSearch, Search, SquarePen, Trash2 } from 'lucide-react'
 import type { ConversationSummary, ViewName } from '../../types'
 
 type AppSidebarProps = {
   view: ViewName; currentConversationId?: string; conversations: ConversationSummary[]; archivedCount: number; documentCount: number; search: string; isBooting: boolean
-  setSearch: (value: string) => void; navigate: (view: ViewName) => void; startNewAnalysis: () => void; openConversation: (id: string) => Promise<void>; deleteConversation: (id: string) => Promise<void>
+  clientWorkflowOnly: boolean; setSearch: (value: string) => void; navigate: (view: ViewName) => void; startNewAnalysis: () => void; openConversation: (id: string) => Promise<void>; deleteConversation: (id: string) => Promise<void>
 }
 
 export function AppSidebar(props: AppSidebarProps) {
@@ -12,10 +12,8 @@ export function AppSidebar(props: AppSidebarProps) {
     <section className="shrink-0 border-b border-[#e9decd] bg-[#f6f0e6] px-4 py-3 sm:px-6">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
         <div className="flex items-center gap-1 self-start rounded-2xl border border-[#e5d7c0] bg-[#fffaf2] p-1.5 shadow-[0_3px_10px_rgba(88,58,24,0.06)]">
-          <button type="button" className={tabClass(props.view === 'chats')} onClick={() => props.navigate('chats')}><SquarePen size={14} />Cases</button>
-          <button type="button" className={tabClass(props.view === 'library')} onClick={() => props.navigate('library')}><Library size={14} />Library <span className="rounded-md bg-[#f3e8d7] px-1.5 py-0.5 text-[9px]">{props.documentCount}</span></button>
-          <button type="button" className={tabClass(props.view === 'reports')} onClick={() => props.navigate('reports')}><Archive size={14} />Reports <span className="rounded-md bg-[#f3e8d7] px-1.5 py-0.5 text-[9px]">{props.archivedCount}</span></button>
-          <button type="button" className={tabClass(props.view === 'entity-master')} onClick={() => props.navigate('entity-master')}><BookMarked size={14} /><span className="hidden lg:inline">Entity master</span><span className="lg:hidden">Master</span></button>
+          <button type="button" className={tabClass(props.view === 'processing')} onClick={() => props.navigate('processing')}><ScanSearch size={14} />Processing</button>
+          {!props.clientWorkflowOnly && <><button type="button" className={tabClass(props.view === 'chats')} onClick={() => props.navigate('chats')}><SquarePen size={14} />Cases</button><button type="button" className={tabClass(props.view === 'library')} onClick={() => props.navigate('library')}><Library size={14} />Library <span className="rounded-md bg-[#f3e8d7] px-1.5 py-0.5 text-[9px]">{props.documentCount}</span></button><button type="button" className={tabClass(props.view === 'reports')} onClick={() => props.navigate('reports')}><Archive size={14} />Reports <span className="rounded-md bg-[#f3e8d7] px-1.5 py-0.5 text-[9px]">{props.archivedCount}</span></button></>}
           <button type="button" className={tabClass(props.view === 'admin-access' || props.view === 'settings')} onClick={() => props.navigate('admin-access')} title="Administration"><LockKeyhole size={14} /><span className="hidden 2xl:inline">Administration</span></button>
         </div>
         <div className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl border border-[#e5d7c0] bg-[#fffaf2] px-3 py-2 shadow-[0_3px_10px_rgba(88,58,24,0.04)]">
