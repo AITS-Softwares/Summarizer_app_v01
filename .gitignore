@@ -22,3 +22,10 @@ appsettings.*.local.json
 .idea/
 .DS_Store
 Thumbs.db
+
+# Node.js dependencies
+node_modules/
+**/node_modules/
+
+# Temporary assets
+tmp/demo_assets/node_modules/
