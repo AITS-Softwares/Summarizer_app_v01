@@ -22,11 +22,14 @@ import { ChatWorkspace } from '../features/chat/ChatWorkspace'
 import { DocumentLibraryPage } from '../features/documents/DocumentLibraryPage'
 import { ReportsPage } from '../features/reports/ReportsPage'
 import { SettingsPage } from '../features/settings/SettingsPage'
-import { AdminAccessPage } from '../features/settings/AdminAccessPage'
+import { UserManagementPage } from '../features/settings/UserManagementPage'
+import { AuditHistoryPage } from '../features/settings/AuditHistoryPage'
 import { TemplateProcessingPage } from '../features/processing/TemplateProcessingPage'
 import type {
   ConversationDetails,
   ConversationSummary,
+  CaseItem,
+  CurrentUser,
   DocumentItem,
   HealthStatus,
   LibraryDocument,
@@ -59,7 +62,14 @@ type SpeechRecognitionInstance = {
 
 const clientWorkflowOnly = import.meta.env.VITE_CLIENT_WORKFLOW_ONLY !== 'false'
 
-export function SummaryStudioApp() {
+type SummaryStudioAppProps = { user: CurrentUser; onLogout: () => Promise<void> }
+
+export function SummaryStudioApp({ user, onLogout }: SummaryStudioAppProps) {
+  const canSystemAdmin = user.roles.includes('SystemAdministrator')
+  const canManageUsers = canSystemAdmin || user.roles.includes('UserAdministrator')
+  const canAudit = canSystemAdmin || user.roles.includes('Auditor')
+  const canManageCases = false
+  const canWorkOnCases = canSystemAdmin || user.roles.includes('ProcessingAdministrator') || user.roles.includes('Analyst')
   const [sourcesOpen, setSourcesOpen] = useState(() => window.innerWidth >= 1280)
   const [workbenchOpen, setWorkbenchOpen] = useState(clientWorkflowOnly)
   const [view, setView] = useState<ViewName>(clientWorkflowOnly ? 'processing' : 'chats')
@@ -70,6 +80,8 @@ export function SummaryStudioApp() {
   const [isTestingProvider, setIsTestingProvider] = useState(false)
   const [health, setHealth] = useState<HealthStatus | null>(null)
   const [conversations, setConversations] = useState<ConversationSummary[]>([])
+  const [cases] = useState<CaseItem[]>([])
+  const [selectedCaseId, setSelectedCaseId] = useState('')
   const [archivedConversations, setArchivedConversations] = useState<ConversationSummary[]>([])
   const [libraryDocuments, setLibraryDocuments] = useState<LibraryDocument[]>([])
   const [current, setCurrent] = useState<ConversationDetails | null>(null)
@@ -87,6 +99,9 @@ export function SummaryStudioApp() {
   const folderInputRef = useRef<HTMLInputElement>(null)
   const requestControllerRef = useRef<AbortController | null>(null)
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
+  const canStartWorkspace = canWorkOnCases
+  const canUploadCase = (_caseId: string | null | undefined) => canWorkOnCases
+  const canProcessCase = (_caseId: string | null | undefined) => canWorkOnCases
 
   const refreshData = useCallback(async () => {
     const [chatData, reportData, documentData] = await Promise.all([
@@ -102,17 +117,20 @@ export function SummaryStudioApp() {
   useEffect(() => {
     const start = async () => {
       try {
-        const [healthData, settingsData] = await Promise.all([api.health(), api.settings()])
-        const normalizedSettings = {
-          ...settingsData,
-          apiBaseUrl: settingsData.apiBaseUrl || defaultSettings.apiBaseUrl,
-          apiModel: settingsData.apiModel || defaultSettings.apiModel,
-          localBaseUrl: settingsData.localBaseUrl || defaultSettings.localBaseUrl,
-          localModel: settingsData.localModel || defaultSettings.localModel,
-        }
+        const healthData = await api.health()
         setHealth(healthData)
-        setSettings(normalizedSettings)
-        setProvider(normalizedSettings.providerMode)
+        if (canSystemAdmin) {
+          const settingsData = await api.settings()
+          const normalizedSettings = {
+            ...settingsData,
+            apiBaseUrl: settingsData.apiBaseUrl || defaultSettings.apiBaseUrl,
+            apiModel: settingsData.apiModel || defaultSettings.apiModel,
+            localBaseUrl: settingsData.localBaseUrl || defaultSettings.localBaseUrl,
+            localModel: settingsData.localModel || defaultSettings.localModel,
+          }
+          setSettings(normalizedSettings)
+          setProvider(normalizedSettings.providerMode)
+        }
         await refreshData()
       } catch {
         setNotice('The frontend is ready, but the API is not reachable. Start the ASP.NET backend on port 5036.')
@@ -121,7 +139,7 @@ export function SummaryStudioApp() {
       }
     }
     void start()
-  }, [refreshData])
+  }, [canSystemAdmin, refreshData])
 
   useEffect(() => {
     if (!notice) return
@@ -137,7 +155,8 @@ export function SummaryStudioApp() {
   const openConversation = async (id: string) => {
     try {
       setIsLoading(true)
-      setCurrent(await api.conversation(id))
+      const conversation = await api.conversation(id)
+      setCurrent(conversation)
       setPendingFiles([])
       setView('chats')
     } catch (error) {
@@ -182,6 +201,23 @@ export function SummaryStudioApp() {
     if (event.dataTransfer.files.length) addFiles(event.dataTransfer.files)
   }
 
+  const savePendingDocuments = async () => {
+    if (!pendingFiles.length || !canWorkOnCases) return
+    try {
+      setIsLoading(true)
+      const conversation = current ?? await api.createConversation()
+      await api.uploadDocuments(conversation.id, pendingFiles)
+      setCurrent(await api.conversation(conversation.id))
+      setPendingFiles([])
+      await refreshData()
+      setNotice('Documents saved.')
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Could not save documents.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const submitPrompt = async (event: FormEvent) => {
     event.preventDefault()
     const text = prompt.trim()
@@ -192,19 +228,16 @@ export function SummaryStudioApp() {
       const controller = new AbortController()
       requestControllerRef.current = controller
       let conversation = current
-      if (!conversation) conversation = await api.createConversation()
+      if (!conversation) {
+        if (!canWorkOnCases) { setNotice('Processing access is required.'); return }
+        conversation = await api.createConversation()
+      }
+      if (!canWorkOnCases) { setNotice('Processing access is required.'); return }
       if (pendingFiles.length > 0) {
         await api.uploadDocuments(conversation.id, pendingFiles, controller.signal)
         setPendingFiles([])
       }
 
-      const settingsForAnalysis = {
-        ...settings,
-        providerMode: provider,
-        apiModel: settings.apiModel || defaultSettings.apiModel,
-        localModel: settings.localModel || defaultSettings.localModel,
-      }
-      await api.updateSettings(settingsForAnalysis, '')
       const result = await api.analyze(
         conversation.id,
         text,
@@ -292,16 +325,25 @@ export function SummaryStudioApp() {
   }
 
   const deleteConversation = async (id: string) => {
-    if (!window.confirm('Delete this conversation and all of its stored documents?')) return
+    if (!window.confirm('Archive this analysis? Its documents and history will be retained.')) return
     await api.deleteConversation(id)
     if (current?.id === id) startNewAnalysis()
     await refreshData()
+    setNotice('Analysis archived; its documents and history were retained.')
   }
 
   const deleteDocument = async (id: string) => {
+    if (!window.confirm('Archive this document? Its stored file and history will be retained.')) return
     await api.deleteDocument(id)
     if (current) setCurrent(await api.conversation(current.id))
     await refreshData()
+    setNotice('Document archived; its stored file was retained.')
+  }
+
+  const restoreDocument = async (id: string) => {
+    await api.restoreDocument(id)
+    await refreshData()
+    setNotice('Document restored to the library.')
   }
 
   const reprocessDocument = async (id: string) => {
@@ -369,10 +411,10 @@ export function SummaryStudioApp() {
   }
 
   const navigate = (nextView: ViewName) => {
-    if (nextView === 'settings' && sessionStorage.getItem('document-review-admin') !== 'granted') {
-      setView('admin-access')
-      return
-    }
+    if (nextView === 'settings' && !canSystemAdmin) { setNotice('You do not have access to system administration.'); return }
+    if (nextView === 'users' && !canManageUsers) { setNotice('You do not have access to user management.'); return }
+    if (nextView === 'audit' && !canAudit) { setNotice('You do not have access to audit history.'); return }
+    if (nextView === 'cases' && !canManageCases) { setNotice('You do not have access to clients and cases.'); return }
     setView(nextView)
   }
 
@@ -395,11 +437,13 @@ export function SummaryStudioApp() {
             health={health}
             sourcesOpen={sourcesOpen}
             workbenchOpen={workbenchOpen}
-            canSaveReport={Boolean(current?.messages.length)}
+            canSaveReport={Boolean(current?.messages.length && !current.isArchived && canUploadCase(current.caseId))}
             archiveCurrent={archiveCurrent}
             toggleSources={() => setSourcesOpen((open) => !open)}
             toggleWorkbench={() => setWorkbenchOpen((open) => !open)}
             openHelp={() => setHelpOpen(true)}
+            userName={user.displayName || user.userName}
+            onLogout={onLogout}
           />
 
           {workbenchOpen && <AppSidebar
@@ -411,6 +455,12 @@ export function SummaryStudioApp() {
             search={search}
             isBooting={isBooting}
             clientWorkflowOnly={clientWorkflowOnly}
+            canAdminister={canSystemAdmin}
+            canManageUsers={canManageUsers}
+            canAudit={canAudit}
+            canManageCases={canManageCases}
+            canArchiveConversation={canUploadCase}
+            canStartAnalysis={canStartWorkspace}
             setSearch={setSearch}
             navigate={navigate}
             startNewAnalysis={startNewAnalysis}
@@ -419,8 +469,12 @@ export function SummaryStudioApp() {
           />}
 
           {view === 'chats' && (
-            <ChatWorkspace
+            <><div className="border-b border-[#eadfcd] bg-[#fffdf8] px-4 py-3 sm:px-6"><label className="field-label mr-3 inline">Assigned client case</label><select className="field-input inline w-full max-w-md" value={selectedCaseId} onChange={(event) => setSelectedCaseId(event.target.value)}><option value="">Choose an assigned case</option>{cases.filter((item) => item.permissions.includes('View')).map((item) => <option key={item.id} value={item.id}>{item.clientName} — {item.name}</option>)}</select></div><ChatWorkspace
               current={current}
+              canEdit={current ? !current.isArchived && canProcessCase(current.caseId) : canUploadCase(selectedCaseId) && canProcessCase(selectedCaseId)}
+              canUpload={current ? !current.isArchived && canUploadCase(current.caseId) : canUploadCase(selectedCaseId)}
+              canProcess={current ? !current.isArchived && canProcessCase(current.caseId) : canProcessCase(selectedCaseId)}
+              savePendingDocuments={savePendingDocuments}
               pendingFiles={pendingFiles}
               prompt={prompt}
               isLoading={isLoading}
@@ -444,10 +498,10 @@ export function SummaryStudioApp() {
               reprocessDocument={reprocessDocument}
               openFiles={() => fileInputRef.current?.click()}
               openFolder={() => folderInputRef.current?.click()}
-            />
+            /></>
           )}
 
-          {view === 'processing' && <TemplateProcessingPage onNotice={setNotice} />}
+          {view === 'processing' && <TemplateProcessingPage user={user} onNotice={setNotice} />}
 
           {view === 'library' && (
             <DocumentLibraryPage
@@ -456,6 +510,9 @@ export function SummaryStudioApp() {
               openConversation={openConversation}
               reprocessDocument={reprocessDocument}
               deleteDocument={deleteDocument}
+              restoreDocument={restoreDocument}
+              canProcess={canProcessCase}
+              canArchive={canUploadCase}
             />
           )}
 
@@ -465,10 +522,11 @@ export function SummaryStudioApp() {
               openConversation={openConversation}
               restoreReport={restoreReport}
               deleteConversation={deleteConversation}
+              canArchive={canUploadCase}
             />
           )}
 
-          {view === 'settings' && (
+          {view === 'settings' && canSystemAdmin && (
             <SettingsPage
               settings={settings}
               apiKey={apiKey}
@@ -483,12 +541,10 @@ export function SummaryStudioApp() {
             />
           )}
 
-          {view === 'admin-access' && (
-            <AdminAccessPage
-              onGranted={() => setView('settings')}
-              onBack={() => setView('chats')}
-            />
-          )}
+          {view === 'users' && canManageUsers && <UserManagementPage currentUser={user} onNotice={setNotice} />}
+
+          {view === 'audit' && canAudit && <AuditHistoryPage onNotice={setNotice} canConfigure={canSystemAdmin} />}
+
       </main>
 
       <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileChange} />

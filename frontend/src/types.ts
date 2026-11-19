@@ -1,8 +1,51 @@
 export type ProviderMode = 'api' | 'local'
-export type ViewName = 'processing' | 'chats' | 'library' | 'reports' | 'admin-access' | 'settings'
+export type ViewName = 'processing' | 'chats' | 'library' | 'reports' | 'settings' | 'users' | 'audit' | 'cases'
+
+export type CurrentUser = {
+  id: string
+  userName: string
+  displayName: string
+  email: string
+  roles: string[]
+  mustChangePassword: boolean
+}
+
+export type ManagedUser = {
+  id: string
+  userName: string
+  displayName: string
+  email: string
+  isActive: boolean
+  mustChangePassword: boolean
+  createdAtUtc: string
+  lastLoginAtUtc: string | null
+  roles: string[]
+}
+
+export type AuditEvent = {
+  id: string
+  occurredAtUtc: string
+  category: string
+  eventType: string
+  actorUserId: string | null
+  actorUserName: string | null
+  actorRoles: string | null
+  targetType: string | null
+  targetId: string | null
+  outcome: string
+  detail: string | null
+  correlationId: string | null
+}
+export type AuditRetentionPolicy = { category: string; keepForever: boolean; retentionDays: number | null; updatedAtUtc: string; updatedByUserId: string | null }
+
+// Compatibility shapes for archived UI modules. New processing no longer uses cases.
+export type CaseItem = { id: string; clientId: string; clientName: string; name: string; status: string; createdAtUtc: string; permissions: string[] }
+export type ClientItem = { id: string; name: string; referenceCode: string; isActive: boolean }
+export type UserOption = { id: string; displayName: string; userName: string; isActive: boolean }
 
 export type ConversationSummary = {
   id: string
+  caseId?: string | null
   title: string
   isArchived: boolean
   messageCount: number
@@ -28,12 +71,14 @@ export type DocumentItem = {
 }
 
 export type LibraryDocument = DocumentItem & {
+  caseId?: string | null
   conversationId: string
   conversationTitle: string
 }
 
 export type ConversationDetails = {
   id: string
+  caseId?: string | null
   title: string
   isArchived: boolean
   createdAtUtc: string
@@ -107,6 +152,7 @@ export type ScreeningTemplate = {
 export type ScreeningRow = {
   id: string
   templateRowNumber: number
+  sourceFileIndex: number
   heading: string
   entityName: string | null
   entityTypeCode: string | null
@@ -125,5 +171,6 @@ export type ScreeningRun = {
   processingMessage: string | null
   sourceFiles: string[]
   createdAtUtc: string
+  createdByUserId: string
   rows: ScreeningRow[]
 }

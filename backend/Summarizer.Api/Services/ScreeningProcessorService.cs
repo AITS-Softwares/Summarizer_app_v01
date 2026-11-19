@@ -7,8 +7,8 @@ namespace Summarizer.Api.Services;
 
 public sealed record TemplateRowDefinition(int RowNumber, string Heading);
 public sealed record TemplateDefinition(string WorksheetName, int HeaderRowNumber, IReadOnlyCollection<TemplateRowDefinition> Rows, IReadOnlyDictionary<string, int> Columns);
-public sealed record ScreeningSource(string Name, string? Text, string Status);
-public sealed record SuggestedScreeningRow(string Heading, int TemplateRowNumber, string? EntityName, string? EntityTypeCode, string? SourceFileName, int? SourcePageNumber, decimal Confidence, string Status, IReadOnlyDictionary<string, string>? Fields = null);
+public sealed record ScreeningSource(int Index, string Name, string? Text, string Status);
+public sealed record SuggestedScreeningRow(int SourceFileIndex, string Heading, int TemplateRowNumber, string? EntityName, string? EntityTypeCode, string? SourceFileName, int? SourcePageNumber, decimal Confidence, string Status, IReadOnlyDictionary<string, string>? Fields = null);
 
 public sealed class ScreeningProcessorService
 {
@@ -38,8 +38,7 @@ public sealed class ScreeningProcessorService
         IReadOnlyCollection<TemplateRowDefinition> templateRows,
         IReadOnlyCollection<ScreeningSource> sources)
     {
-        var hasOcrOnlySource = sources.Any(source => source.Status == "ocr-required") && sources.All(source => string.IsNullOrWhiteSpace(source.Text));
-        return templateRows.Select(row => SuggestRow(row, sources, hasOcrOnlySource)).ToArray();
+        return sources.SelectMany(source => templateRows.Select(row => SuggestRow(row, source))).ToArray();
     }
 
     public string ExportCompletedTemplate(ScreeningTemplate template, IReadOnlyCollection<ScreeningRow> rows, string outputDirectory)
@@ -49,20 +48,53 @@ public sealed class ScreeningProcessorService
         var sheet = workbook.Worksheet(template.WorksheetName);
         var headingColumn = FindColumn(sheet, template.HeaderRowNumber, "heading");
 
-        foreach (var row in rows)
+        var templateRows = DeserializeRows(template.RowsJson).OrderBy(row => row.RowNumber).ToArray();
+        var rowsBySource = rows.GroupBy(row => row.SourceFileIndex).OrderBy(group => group.Key).ToArray();
+        foreach (var sourceRows in rowsBySource)
         {
-            var fields = JsonSerializer.Deserialize<Dictionary<string, string>>(row.ExtractedFieldsJson) ?? [];
-            foreach (var cell in sheet.Row(template.HeaderRowNumber).CellsUsed())
+            var sourceRowsByTemplate = sourceRows.ToDictionary(row => row.TemplateRowNumber);
+            var sourcePosition = Array.IndexOf(rowsBySource, sourceRows);
+            foreach (var templateRow in templateRows)
             {
-                var header = cell.GetString().Trim();
-                if (header.Equals("Heading", StringComparison.OrdinalIgnoreCase)) continue;
-                var outputCell = sheet.Cell(row.TemplateRowNumber, cell.Address.ColumnNumber);
-                outputCell.Clear(XLClearOptions.Contents);
-                if (header.Equals("Name*", StringComparison.OrdinalIgnoreCase) && fields.TryGetValue("Name*", out var name)) outputCell.Value = name;
-                if (header.Equals("Entity Type*", StringComparison.OrdinalIgnoreCase) && fields.TryGetValue("Entity Type*", out var entityType)) outputCell.Value = entityType;
+                var outputRowNumber = template.HeaderRowNumber + sourcePosition * templateRows.Length + Array.IndexOf(templateRows, templateRow) + 1;
+                if (sourcePosition > 0) sheet.Row(templateRow.RowNumber).CopyTo(sheet.Row(outputRowNumber));
+                if (!sourceRowsByTemplate.TryGetValue(templateRow.RowNumber, out var row)) continue;
+                var fields = JsonSerializer.Deserialize<Dictionary<string, string>>(row.ExtractedFieldsJson) ?? [];
+                foreach (var cell in sheet.Row(template.HeaderRowNumber).CellsUsed())
+                {
+                    var header = cell.GetString().Trim();
+                    if (header.Equals("Heading", StringComparison.OrdinalIgnoreCase)) continue;
+                    var outputCell = sheet.Cell(outputRowNumber, cell.Address.ColumnNumber);
+                    outputCell.Clear(XLClearOptions.Contents);
+                    if (header.Equals("Name*", StringComparison.OrdinalIgnoreCase) && fields.TryGetValue("Name*", out var name)) outputCell.Value = name;
+                    if (header.Equals("Entity Type*", StringComparison.OrdinalIgnoreCase) && fields.TryGetValue("Entity Type*", out var entityType)) outputCell.Value = entityType;
+                }
             }
         }
         if (headingColumn > 0) sheet.Column(headingColumn).Delete();
+
+        var evidence = workbook.Worksheets.Add("Processing Evidence");
+        evidence.Cell(1, 1).Value = "Source file";
+        evidence.Cell(1, 2).Value = "Template row";
+        evidence.Cell(1, 3).Value = "Heading";
+        evidence.Cell(1, 4).Value = "Source page";
+        evidence.Cell(1, 5).Value = "Confidence";
+        evidence.Cell(1, 6).Value = "Status";
+        evidence.Cell(1, 7).Value = "Extracted name";
+        foreach (var header in evidence.Row(1).CellsUsed()) header.Style.Font.Bold = true;
+        var evidenceRow = 2;
+        foreach (var row in rows.OrderBy(row => row.SourceFileIndex).ThenBy(row => row.TemplateRowNumber))
+        {
+            evidence.Cell(evidenceRow, 1).Value = row.SourceFileName ?? string.Empty;
+            evidence.Cell(evidenceRow, 2).Value = row.TemplateRowNumber;
+            evidence.Cell(evidenceRow, 3).Value = row.Heading;
+            evidence.Cell(evidenceRow, 4).Value = row.SourcePageNumber;
+            evidence.Cell(evidenceRow, 5).Value = row.Confidence;
+            evidence.Cell(evidenceRow, 6).Value = row.Status;
+            evidence.Cell(evidenceRow, 7).Value = row.EntityName ?? string.Empty;
+            evidenceRow++;
+        }
+        evidence.Columns().AdjustToContents();
 
         var outputPath = Path.Combine(outputDirectory, $"screening-result-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid():N}.xlsx");
         workbook.SaveAs(outputPath);
@@ -74,19 +106,19 @@ public sealed class ScreeningProcessorService
 
     public static string SerializeRows(IReadOnlyCollection<TemplateRowDefinition> rows) => JsonSerializer.Serialize(rows);
 
-    private static SuggestedScreeningRow SuggestRow(TemplateRowDefinition row, IReadOnlyCollection<ScreeningSource> sources, bool hasOcrOnlySource)
+    private static SuggestedScreeningRow SuggestRow(TemplateRowDefinition row, ScreeningSource source)
     {
-        foreach (var source in sources.Where(item => !string.IsNullOrWhiteSpace(item.Text)))
+        if (!string.IsNullOrWhiteSpace(source.Text))
         {
             var value = ExtractValueAfterHeading(source.Text!, row.Heading);
             if (!string.IsNullOrWhiteSpace(value))
             {
                 var entityType = InferEntityType(row.Heading);
-                return new SuggestedScreeningRow(row.Heading, row.RowNumber, value, entityType, source.Name, FindPageNumber(source.Text!, row.Heading), 0.55m, "needs-review", new Dictionary<string, string> { ["Name*"] = value, ["Entity Type*"] = entityType });
+                return new SuggestedScreeningRow(source.Index, row.Heading, row.RowNumber, value, entityType, source.Name, FindPageNumber(source.Text!, row.Heading), 0.55m, "needs-review", new Dictionary<string, string> { ["Name*"] = value, ["Entity Type*"] = entityType });
             }
         }
 
-        return new SuggestedScreeningRow(row.Heading, row.RowNumber, null, null, null, null, 0m, hasOcrOnlySource ? "ocr-required" : "not-found");
+        return new SuggestedScreeningRow(source.Index, row.Heading, row.RowNumber, null, null, source.Name, null, 0m, source.Status == "ocr-required" ? "ocr-required" : "not-found");
     }
 
     private static string? ExtractValueAfterHeading(string text, string heading)

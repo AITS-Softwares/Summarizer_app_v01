@@ -6,12 +6,13 @@ import { AssistantResponse } from './AssistantResponse'
 
 type ChatMessagesProps = {
   current: ConversationDetails | null
+  canEdit: boolean
   isLoading: boolean
   setPrompt: (value: string) => void
   editMessage: (id: string, content: string) => void
 }
 
-export function ChatMessages({ current, isLoading, setPrompt, editMessage }: ChatMessagesProps) {
+export function ChatMessages({ current, canEdit, isLoading, setPrompt, editMessage }: ChatMessagesProps) {
   if (!current || current.messages.length === 0) {
     return (
       <div className="my-auto flex flex-col items-center py-8 text-center">
@@ -24,14 +25,14 @@ export function ChatMessages({ current, isLoading, setPrompt, editMessage }: Cha
         <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-[#af7627]">Document Review Workspace</p>
         <h2 className="text-balance text-2xl font-semibold tracking-[-0.035em] text-[#241a11] sm:text-[31px]">Create a focused analysis report</h2>
         <p className="mt-3 max-w-[570px] text-sm leading-6 text-[#7d6c56]">Attach files or a folder, then define the outcome: summary, comparison, risk review, data extraction, or a custom report.</p>
-        <div className="mt-8 grid w-full max-w-[690px] grid-cols-2 gap-2.5 sm:grid-cols-4">
+        {canEdit && <div className="mt-8 grid w-full max-w-[690px] grid-cols-2 gap-2.5 sm:grid-cols-4">
           {analysisModes.map(({ label, icon: Icon, prompt }) => (
             <button type="button" key={label} className="analysis-card" onClick={() => setPrompt(prompt)}>
               <Icon size={18} className="mb-3 text-[#b77823]" />
               <span className="text-xs font-semibold">{label}</span>
             </button>
           ))}
-        </div>
+        </div>}
         <div className="mt-7 flex items-center gap-5 text-[11px] font-medium text-[#99876e]"><span className="flex items-center gap-2"><FileSearch size={14} className="text-[#b47a2a]" />Sources are kept with this case</span><span className="flex items-center gap-2"><ShieldCheck size={14} className="text-[#b47a2a]" />Review findings against source material</span></div>
       </div>
     )
@@ -51,7 +52,7 @@ export function ChatMessages({ current, isLoading, setPrompt, editMessage }: Cha
                 : message.content}
               <div className="mt-2 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#a1917d]">{message.role === 'assistant' ? 'Generated report' : 'Analysis request'} · {formatDate(message.createdAtUtc)}</div>
             </div>
-            {message.role === 'user' && (
+            {canEdit && message.role === 'user' && (
               <button type="button" className="message-edit-button" aria-label="Edit prompt" title="Edit and regenerate from this prompt" onClick={() => editMessage(message.id, message.content)}>
                 <Pencil size={13} />
               </button>

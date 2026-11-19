@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Summarizer.Api.Contracts;
@@ -13,6 +14,7 @@ namespace Summarizer.Api.Controllers;
 public sealed class AnalysisController(AppDbContext dbContext, AiProviderService aiProviderService, IConfiguration configuration) : ControllerBase
 {
     [HttpPost]
+    [Authorize(Policy = "ProcessingAdministration")]
     public async Task<ActionResult<AnalysisResponse>> Analyze(
         AnalysisRequest request,
         CancellationToken cancellationToken)
@@ -27,25 +29,20 @@ public sealed class AnalysisController(AppDbContext dbContext, AiProviderService
             return BadRequest("Prompt is required.");
         }
 
-        Conversation conversation;
-        if (request.ConversationId.HasValue)
+        if (request.ConversationId is null)
         {
-            var existingConversation = await dbContext.Conversations
-                .Include(item => item.Documents)
-                .Include(item => item.Messages)
-                .SingleOrDefaultAsync(item => item.Id == request.ConversationId.Value, cancellationToken);
-            if (existingConversation is null)
-            {
-                return NotFound("Conversation not found.");
-            }
+            return BadRequest("Create a conversation before analysis.");
+        }
 
-            conversation = existingConversation;
-        }
-        else
+        var conversation = await dbContext.Conversations
+            .Include(item => item.Documents)
+            .Include(item => item.Messages)
+            .SingleOrDefaultAsync(item => item.Id == request.ConversationId.Value, cancellationToken);
+        if (conversation is null)
         {
-            conversation = new Conversation { Title = CreateTitle(request.Prompt) };
-            dbContext.Conversations.Add(conversation);
+            return NotFound("Conversation not found.");
         }
+        if (conversation.IsArchived) return BadRequest("Restore the conversation before analysis.");
 
         var settings = await dbContext.ProviderSettings.SingleAsync(item => item.Id == 1, cancellationToken);
         var provider = request.Provider is "local" ? "local" : request.Provider is "api" ? "api" : settings.ProviderMode;
@@ -79,7 +76,7 @@ public sealed class AnalysisController(AppDbContext dbContext, AiProviderService
             dbContext.Messages.Add(userMessage);
         }
 
-        var context = BuildDocumentContext(conversation.Documents);
+        var context = BuildDocumentContext(conversation.Documents.Where(item => !item.IsArchived));
         var result = await aiProviderService.AnalyzeAsync(settings, provider, request.Prompt.Trim(), context, cancellationToken);
         var assistantMessage = new ChatMessage
         {

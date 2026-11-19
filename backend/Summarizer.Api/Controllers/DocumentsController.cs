@@ -1,137 +1,18 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Summarizer.Api.Contracts;
 using Summarizer.Api.Data;
 using Summarizer.Api.Models;
 using Summarizer.Api.Services;
-
 namespace Summarizer.Api.Controllers;
-
-[ApiController]
-[Route("api/documents")]
-public sealed class DocumentsController(
-    AppDbContext dbContext,
-    DocumentTextExtractor textExtractor,
-    IConfiguration configuration,
-    IWebHostEnvironment environment) : ControllerBase
+[ApiController, Route("api/documents"), Authorize(Policy="ProcessingAdministration")]
+public sealed class DocumentsController(AppDbContext db,DocumentTextExtractor extractor,IConfiguration config,IWebHostEnvironment environment,AuditService audit):ControllerBase
 {
-    [HttpGet]
-    public async Task<IReadOnlyCollection<LibraryDocumentResponse>> GetAll(CancellationToken cancellationToken)
-    {
-        return await dbContext.Documents
-            .AsNoTracking()
-            .OrderByDescending(item => item.UploadedAtUtc)
-            .Select(item => new LibraryDocumentResponse(
-                item.Id,
-                item.OriginalName,
-                item.ContentType,
-                item.SizeBytes,
-                item.Status,
-                item.UploadedAtUtc,
-                item.ConversationId,
-                item.Conversation.Title))
-            .ToListAsync(cancellationToken);
-    }
-
-    [HttpPost]
-    [RequestSizeLimit(100 * 1024 * 1024)]
-    public async Task<ActionResult<IReadOnlyCollection<DocumentResponse>>> Upload(
-        [FromForm] Guid conversationId,
-        [FromForm] List<IFormFile> files,
-        CancellationToken cancellationToken)
-    {
-        if (files.Count == 0) return BadRequest("At least one file is required.");
-
-        var conversation = await dbContext.Conversations.FindAsync([conversationId], cancellationToken);
-        if (conversation is null) return NotFound("Conversation not found.");
-
-        var configuredPath = configuration["Storage:FilesPath"] ?? "../../storage/files";
-        var storageRoot = Path.GetFullPath(configuredPath, environment.ContentRootPath);
-        var conversationPath = Path.Combine(storageRoot, conversationId.ToString("N"));
-        Directory.CreateDirectory(conversationPath);
-
-        var added = new List<StoredDocument>();
-        foreach (var file in files.Where(file => file.Length > 0))
-        {
-            var safeOriginalName = Path.GetFileName(file.FileName);
-            var storedName = $"{Guid.NewGuid():N}{Path.GetExtension(safeOriginalName)}";
-            var storagePath = Path.Combine(conversationPath, storedName);
-
-            await using (var stream = System.IO.File.Create(storagePath))
-            {
-                await file.CopyToAsync(stream, cancellationToken);
-            }
-
-            var extraction = await textExtractor.ExtractAsync(storagePath, safeOriginalName, cancellationToken);
-            var document = new StoredDocument
-            {
-                ConversationId = conversationId,
-                OriginalName = safeOriginalName,
-                StoredName = storedName,
-                ContentType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType,
-                SizeBytes = file.Length,
-                StoragePath = storagePath,
-                ExtractedText = extraction.Text,
-                Status = extraction.Status
-            };
-            added.Add(document);
-            dbContext.Documents.Add(document);
-        }
-
-        conversation.UpdatedAtUtc = DateTime.UtcNow;
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        return Ok(added.Select(document => new DocumentResponse(
-            document.Id,
-            document.OriginalName,
-            document.ContentType,
-            document.SizeBytes,
-            document.Status,
-            document.UploadedAtUtc)));
-    }
-
-    [HttpPost("{id:guid}/reprocess")]
-    public async Task<ActionResult<DocumentResponse>> Reprocess(Guid id, CancellationToken cancellationToken)
-    {
-        var document = await dbContext.Documents.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
-        if (document is null) return NotFound();
-        if (!System.IO.File.Exists(document.StoragePath))
-        {
-            document.Status = "missing";
-            await dbContext.SaveChangesAsync(cancellationToken);
-            return NotFound("The stored file could not be found.");
-        }
-
-        var extraction = await textExtractor.ExtractAsync(
-            document.StoragePath,
-            document.OriginalName,
-            cancellationToken);
-        document.ExtractedText = extraction.Text;
-        document.Status = extraction.Status;
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        return Ok(new DocumentResponse(
-            document.Id,
-            document.OriginalName,
-            document.ContentType,
-            document.SizeBytes,
-            document.Status,
-            document.UploadedAtUtc));
-    }
-
-    [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
-    {
-        var document = await dbContext.Documents.SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
-        if (document is null) return NotFound();
-
-        if (System.IO.File.Exists(document.StoragePath))
-        {
-            System.IO.File.Delete(document.StoragePath);
-        }
-
-        dbContext.Documents.Remove(document);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return NoContent();
-    }
+ [HttpGet] public async Task<IReadOnlyCollection<LibraryDocumentResponse>> GetAll([FromQuery]bool archived=false,CancellationToken token=default)=>await db.Documents.AsNoTracking().Where(x=>x.IsArchived==archived).OrderByDescending(x=>x.UploadedAtUtc).Select(x=>new LibraryDocumentResponse(x.Id,x.OriginalName,x.ContentType,x.SizeBytes,x.Status,x.UploadedAtUtc,x.ConversationId,x.Conversation.Title)).ToListAsync(token);
+ [HttpPost,RequestSizeLimit(100*1024*1024)] public async Task<ActionResult<IReadOnlyCollection<DocumentResponse>>> Upload([FromForm]Guid conversationId,[FromForm]List<IFormFile>files,CancellationToken token) {if(files.Count==0)return BadRequest("At least one file is required.");var conversation=await db.Conversations.FindAsync([conversationId],token);if(conversation is null)return NotFound("Conversation not found.");var root=Path.GetFullPath(config["Storage:FilesPath"]??"../../storage/files",environment.ContentRootPath);var folder=Path.Combine(root,conversationId.ToString("N"));Directory.CreateDirectory(folder);var added=new List<StoredDocument>();foreach(var file in files.Where(x=>x.Length>0)){var name=Path.GetFileName(file.FileName);var stored=$"{Guid.NewGuid():N}{Path.GetExtension(name)}";var path=Path.Combine(folder,stored);await using(var output=System.IO.File.Create(path))await file.CopyToAsync(output,token);var extraction=await extractor.ExtractAsync(path,name,token);var document=new StoredDocument{ConversationId=conversationId,OriginalName=name,StoredName=stored,ContentType=string.IsNullOrWhiteSpace(file.ContentType)?"application/octet-stream":file.ContentType,SizeBytes=file.Length,StoragePath=path,ExtractedText=extraction.Text,Status=extraction.Status};added.Add(document);db.Documents.Add(document);}conversation.UpdatedAtUtc=DateTime.UtcNow;await db.SaveChangesAsync(token);foreach(var d in added)await audit.RecordAsync("document.uploaded",targetType:"document",targetId:d.Id.ToString(),detail:d.OriginalName,cancellationToken:token);return Ok(added.Select(d=>new DocumentResponse(d.Id,d.OriginalName,d.ContentType,d.SizeBytes,d.Status,d.UploadedAtUtc)));}
+ [HttpPost("{id:guid}/reprocess")] public async Task<ActionResult<DocumentResponse>> Reprocess(Guid id,CancellationToken token){var d=await db.Documents.SingleOrDefaultAsync(x=>x.Id==id&&!x.IsArchived,token);if(d is null)return NotFound();if(!System.IO.File.Exists(d.StoragePath)){d.Status="missing";await db.SaveChangesAsync(token);return NotFound("The stored file could not be found.");}var x=await extractor.ExtractAsync(d.StoragePath,d.OriginalName,token);d.ExtractedText=x.Text;d.Status=x.Status;await db.SaveChangesAsync(token);await audit.RecordAsync("document.reprocessed",targetType:"document",targetId:d.Id.ToString(),detail:d.Status,cancellationToken:token);return Ok(new DocumentResponse(d.Id,d.OriginalName,d.ContentType,d.SizeBytes,d.Status,d.UploadedAtUtc));}
+ [HttpDelete("{id:guid}")] public async Task<IActionResult> Delete(Guid id,CancellationToken token){var d=await db.Documents.FindAsync([id],token);if(d is null)return NotFound();if(!d.IsArchived){d.IsArchived=true;d.ArchivedAtUtc=DateTime.UtcNow;d.ArchivedByUserId=User.FindFirstValue(ClaimTypes.NameIdentifier);await db.SaveChangesAsync(token);await audit.RecordAsync("document.archived",targetType:"document",targetId:d.Id.ToString(),detail:d.OriginalName,cancellationToken:token);}return NoContent();}
+ [HttpPost("{id:guid}/restore")] public async Task<IActionResult> Restore(Guid id,CancellationToken token){var d=await db.Documents.FindAsync([id],token);if(d is null)return NotFound();d.IsArchived=false;d.ArchivedAtUtc=null;d.ArchivedByUserId=null;await db.SaveChangesAsync(token);await audit.RecordAsync("document.restored","document",id.ToString(),cancellationToken:token);return NoContent();}
 }

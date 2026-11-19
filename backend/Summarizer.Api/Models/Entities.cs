@@ -1,8 +1,37 @@
+using Microsoft.AspNetCore.Identity;
+
 namespace Summarizer.Api.Models;
+
+public sealed class ApplicationUser : IdentityUser
+{
+    public string DisplayName { get; set; } = string.Empty;
+    public bool IsActive { get; set; } = true;
+    public bool MustChangePassword { get; set; } = true;
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+    public DateTime? LastLoginAtUtc { get; set; }
+    public string? DisabledReason { get; set; }
+}
+
+public sealed class AuditEvent
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public DateTime OccurredAtUtc { get; set; } = DateTime.UtcNow;
+    public string EventType { get; set; } = string.Empty;
+    public string? ActorUserId { get; set; }
+    public string? ActorUserName { get; set; }
+    public string? ActorRoles { get; set; }
+    public string Category { get; set; } = "processing";
+    public string? TargetType { get; set; }
+    public string? TargetId { get; set; }
+    public string Outcome { get; set; } = "success";
+    public string? Detail { get; set; }
+    public string? CorrelationId { get; set; }
+}
 
 public sealed class Conversation
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    public string? CreatedByUserId { get; set; }
     public string Title { get; set; } = "New document analysis";
     public bool IsArchived { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
@@ -34,6 +63,9 @@ public sealed class StoredDocument
     public string StoragePath { get; set; } = string.Empty;
     public string? ExtractedText { get; set; }
     public string Status { get; set; } = "ready";
+    public bool IsArchived { get; set; }
+    public DateTime? ArchivedAtUtc { get; set; }
+    public string? ArchivedByUserId { get; set; }
     public DateTime UploadedAtUtc { get; set; } = DateTime.UtcNow;
 }
 
@@ -81,6 +113,7 @@ public sealed class ScreeningRun
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid TemplateId { get; set; }
+    public string CreatedByUserId { get; set; } = string.Empty;
     public ScreeningTemplate Template { get; set; } = null!;
     public string Status { get; set; } = "review-required";
     public string? ProcessingMessage { get; set; }
@@ -89,6 +122,33 @@ public sealed class ScreeningRun
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
     public ICollection<ScreeningRow> Rows { get; set; } = [];
+    public ICollection<ProcessingSourceFile> SourceFiles { get; set; } = [];
+}
+
+public sealed class ProcessingSourceFile
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid ScreeningRunId { get; set; }
+    public ScreeningRun ScreeningRun { get; set; } = null!;
+    public int SourceFileIndex { get; set; }
+    public string OriginalName { get; set; } = string.Empty;
+    public string StoredName { get; set; } = string.Empty;
+    public string StoragePath { get; set; } = string.Empty;
+    public string ContentType { get; set; } = "application/octet-stream";
+    public long SizeBytes { get; set; }
+    public string Sha256 { get; set; } = string.Empty;
+    public string ExtractionStatus { get; set; } = "stored";
+    public string UploadedByUserId { get; set; } = string.Empty;
+    public DateTime UploadedAtUtc { get; set; } = DateTime.UtcNow;
+}
+
+public sealed class AuditRetentionPolicy
+{
+    public string Category { get; set; } = string.Empty;
+    public bool KeepForever { get; set; }
+    public int? RetentionDays { get; set; }
+    public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+    public string? UpdatedByUserId { get; set; }
 }
 
 public sealed class ScreeningRow
@@ -97,6 +157,7 @@ public sealed class ScreeningRow
     public Guid ScreeningRunId { get; set; }
     public ScreeningRun ScreeningRun { get; set; } = null!;
     public int TemplateRowNumber { get; set; }
+    public int SourceFileIndex { get; set; }
     public string Heading { get; set; } = string.Empty;
     public string? EntityName { get; set; }
     public string? EntityTypeCode { get; set; }

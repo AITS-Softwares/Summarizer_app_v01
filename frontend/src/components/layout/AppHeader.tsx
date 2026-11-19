@@ -1,12 +1,12 @@
-import { Archive, CircleHelp, PanelRightClose, PanelRightOpen, SlidersHorizontal } from 'lucide-react'
+import { Archive, CircleHelp, LogOut, PanelRightClose, PanelRightOpen, SlidersHorizontal } from 'lucide-react'
 import type { HealthStatus, ViewName } from '../../types'
 import { Brand } from '../shared/Brand'
 import { StatusPill } from '../shared/StatusPill'
 
-type AppHeaderProps = { view: ViewName; title?: string; health: HealthStatus | null; sourcesOpen: boolean; workbenchOpen: boolean; canSaveReport: boolean; archiveCurrent: () => Promise<void>; toggleSources: () => void; toggleWorkbench: () => void; openHelp: () => void }
+type AppHeaderProps = { view: ViewName; title?: string; health: HealthStatus | null; sourcesOpen: boolean; workbenchOpen: boolean; canSaveReport: boolean; archiveCurrent: () => Promise<void>; toggleSources: () => void; toggleWorkbench: () => void; openHelp: () => void; userName: string; onLogout: () => Promise<void> }
 
 export function AppHeader(props: AppHeaderProps) {
-  const title = props.view === 'processing' ? 'Template processing' : props.view === 'chats' ? props.title ?? 'New analysis case' : props.view === 'library' ? 'Document library' : props.view === 'reports' ? 'Saved reports' : props.view === 'admin-access' ? 'Administration access' : 'Processing configuration'
+  const title = props.view === 'processing' ? 'Template processing' : props.view === 'chats' ? props.title ?? 'New analysis case' : props.view === 'library' ? 'Document library' : props.view === 'reports' ? 'Saved reports' : props.view === 'users' ? 'User management' : props.view === 'audit' ? 'Audit history' : props.view === 'cases' ? 'Clients and cases' : 'Processing configuration'
   return (
     <header className="flex h-[76px] shrink-0 items-center gap-4 border-b border-[#eadfcd] bg-[#fffdf8] px-4 sm:px-6">
       <Brand />
@@ -17,6 +17,8 @@ export function AppHeader(props: AppHeaderProps) {
       </div>
       <div className="ml-auto flex items-center gap-2">
         <div className="hidden md:block"><StatusPill health={props.health} /></div>
+        <span className="hidden max-w-32 truncate text-[11px] font-semibold text-[#6f5b40] lg:block">{props.userName}</span>
+        <button type="button" className="icon-button" aria-label="Sign out" title="Sign out" onClick={() => void props.onLogout()}><LogOut size={16} /></button>
         <button type="button" className={`icon-button ${props.workbenchOpen ? 'bg-[#f4eadb] text-[#6f481b]' : ''}`} aria-label={props.workbenchOpen ? 'Hide workspace controls' : 'Show workspace controls'} title={props.workbenchOpen ? 'Hide workspace controls' : 'Show workspace controls'} onClick={props.toggleWorkbench}><SlidersHorizontal size={17} /></button>
         {props.view === 'chats' && props.canSaveReport && <button type="button" className="secondary-button hidden sm:flex" onClick={() => void props.archiveCurrent()}><Archive size={14} />Save report</button>}
         {props.view === 'chats' && <button type="button" className="icon-button" aria-label={props.sourcesOpen ? 'Hide source material' : 'Show source material'} title={props.sourcesOpen ? 'Hide source material' : 'Show source material'} onClick={props.toggleSources}>{props.sourcesOpen ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}</button>}

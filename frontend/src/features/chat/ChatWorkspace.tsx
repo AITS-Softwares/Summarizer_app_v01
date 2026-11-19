@@ -11,13 +11,15 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
           <div className="mx-auto flex min-h-full w-full max-w-[920px] flex-col px-4 pb-52 pt-8 sm:px-8 sm:pt-12">
             <ChatMessages
               current={props.current}
+              canEdit={props.canEdit}
               isLoading={props.isLoading}
               setPrompt={props.setPrompt}
               editMessage={props.editMessage}
             />
           </div>
         </div>
-        <ChatComposer
+        {props.canEdit && <ChatComposer
+          canUpload={props.canUpload}
           pendingFiles={props.pendingFiles}
           prompt={props.prompt}
           isLoading={props.isLoading}
@@ -34,9 +36,12 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
           removePending={props.removePending}
           openFiles={props.openFiles}
           openFolder={props.openFolder}
-        />
+        />}
       </section>
       <SourcesPanel
+        canUpload={props.canUpload}
+        canProcess={props.canProcess}
+        savePendingDocuments={props.savePendingDocuments}
         open={props.sourcesOpen}
         sources={props.allSources}
         pendingFiles={props.pendingFiles}

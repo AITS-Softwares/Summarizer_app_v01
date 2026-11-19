@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Summarizer.Api.Contracts;
 using Summarizer.Api.Data;
@@ -9,7 +10,8 @@ namespace Summarizer.Api.Controllers;
 
 [ApiController]
 [Route("api/settings")]
-public sealed class SettingsController(AppDbContext dbContext, AiProviderService aiProviderService) : ControllerBase
+[Authorize(Policy = "SystemAdministration")]
+public sealed class SettingsController(AppDbContext dbContext, AiProviderService aiProviderService, AuditService auditService) : ControllerBase
 {
     [HttpGet]
     public async Task<ProviderSettingsResponse> Get(CancellationToken cancellationToken)
@@ -46,6 +48,7 @@ public sealed class SettingsController(AppDbContext dbContext, AiProviderService
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        await auditService.RecordAsync("configuration.provider.updated", targetType: "provider-settings", targetId: settings.Id.ToString(), detail: $"Mode: {settings.ProviderMode}; model: {(settings.ProviderMode == "local" ? settings.LocalModel : settings.ApiModel)}", cancellationToken: cancellationToken);
         return Ok(ToResponse(settings));
     }
 
@@ -66,6 +69,8 @@ public sealed class SettingsController(AppDbContext dbContext, AiProviderService
             "Reply with exactly: Connection successful",
             string.Empty,
             cancellationToken);
+
+        await auditService.RecordAsync("configuration.provider.tested", result.RequiresConfiguration ? "failed" : "success", "provider-settings", settings.Id.ToString(), providerName, cancellationToken);
 
         return Ok(new ProviderTestResponse(
             !result.RequiresConfiguration,

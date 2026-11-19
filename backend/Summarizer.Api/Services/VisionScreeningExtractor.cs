@@ -5,7 +5,7 @@ using Summarizer.Api.Models;
 
 namespace Summarizer.Api.Services;
 
-public sealed record ScannedScreeningSource(string Name, string StoragePath);
+public sealed record ScannedScreeningSource(int Index, string Name, string StoragePath);
 public sealed record VisionScreeningOutcome(IReadOnlyCollection<SuggestedScreeningRow> Suggestions, string? ConfigurationMessage);
 
 public sealed class VisionScreeningExtractor(
@@ -19,11 +19,11 @@ public sealed class VisionScreeningExtractor(
 
     public async Task<VisionScreeningOutcome> ExtractAsync(
         IReadOnlyCollection<TemplateRowDefinition> templateRows,
-        IReadOnlyCollection<ScannedScreeningSource> sources,
+        ScannedScreeningSource source,
         ProviderSettings settings,
         CancellationToken cancellationToken)
     {
-        var images = await ExtractPageImages(sources, cancellationToken);
+        var images = await ExtractPageImages([source], cancellationToken);
         if (images.Count == 0)
         {
             return new VisionScreeningOutcome([], "The PDF renderer could not create page images. Install Poppler (pdftoppm) or configure Ocr:PdfToImageCommand, then process the document again.");
@@ -35,7 +35,7 @@ public sealed class VisionScreeningExtractor(
             var result = await aiProviderService.AnalyzeImagesAsync(
                 settings,
                 settings.ProviderMode,
-                BuildPrompt(rowBatch, sources.Select(source => source.Name)),
+                BuildPrompt(rowBatch, [source.Name]),
                 images,
                 cancellationToken);
             if (result.RequiresConfiguration)
@@ -53,20 +53,17 @@ public sealed class VisionScreeningExtractor(
             values.AddRange(parsed);
         }
 
-        var knownSourceNames = sources.Select(source => source.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var suggestions = templateRows.Select(templateRow =>
         {
             var value = values.FirstOrDefault(item => item.TemplateRowNumber == templateRow.RowNumber);
             if (value is null)
             {
-                return new SuggestedScreeningRow(templateRow.Heading, templateRow.RowNumber, null, null, null, null, 0m, "not-found");
+                return new SuggestedScreeningRow(source.Index, templateRow.Heading, templateRow.RowNumber, null, null, source.Name, null, 0m, "not-found");
             }
 
             var entityName = value.EntityName?.Trim();
-            if (string.IsNullOrWhiteSpace(entityName)) return new SuggestedScreeningRow(templateRow.Heading, templateRow.RowNumber, null, null, null, null, 0m, "not-found");
-            var sourceName = !string.IsNullOrWhiteSpace(value.SourceFileName) && knownSourceNames.Contains(value.SourceFileName)
-                ? value.SourceFileName
-                : sources.First().Name;
+            if (string.IsNullOrWhiteSpace(entityName)) return new SuggestedScreeningRow(source.Index, templateRow.Heading, templateRow.RowNumber, null, null, source.Name, null, 0m, "not-found");
+            var sourceName = source.Name;
             var confidence = Math.Clamp(value.Confidence ?? 0.7m, 0m, 1m);
             var entityType = NormalizeEntityType(value.EntityTypeCode) ?? ScreeningProcessorService.InferEntityType(templateRow.Heading);
             var fields = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -76,6 +73,7 @@ public sealed class VisionScreeningExtractor(
             };
             var status = "needs-review";
             return new SuggestedScreeningRow(
+                source.Index,
                 templateRow.Heading,
                 templateRow.RowNumber,
                 entityName,

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using ExcelDataReader;
 using Summarizer.Api.Contracts;
@@ -9,6 +10,7 @@ namespace Summarizer.Api.Controllers;
 
 [ApiController]
 [Route("api/entity-mappings")]
+[Authorize(Policy = "ProcessingAdministration")]
 public sealed class EntityMappingsController(AppDbContext dbContext) : ControllerBase
 {
     private const long MaximumImportSizeBytes = 10 * 1024 * 1024;

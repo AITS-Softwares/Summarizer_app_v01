@@ -1,9 +1,11 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Summarizer.Api.Models;
 
 namespace Summarizer.Api.Data;
 
-public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : IdentityDbContext<ApplicationUser, IdentityRole, string>(options)
 {
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<ChatMessage> Messages => Set<ChatMessage>();
@@ -13,12 +15,39 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
     public DbSet<ScreeningTemplate> ScreeningTemplates => Set<ScreeningTemplate>();
     public DbSet<ScreeningRun> ScreeningRuns => Set<ScreeningRun>();
     public DbSet<ScreeningRow> ScreeningRows => Set<ScreeningRow>();
+    public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
+    public DbSet<ProcessingSourceFile> ProcessingSourceFiles => Set<ProcessingSourceFile>();
+    public DbSet<AuditRetentionPolicy> AuditRetentionPolicies => Set<AuditRetentionPolicy>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<ApplicationUser>(entity =>
+        {
+            entity.Property(item => item.DisplayName).HasMaxLength(200);
+            entity.Property(item => item.DisabledReason).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<AuditEvent>(entity =>
+        {
+            entity.Property(item => item.EventType).HasMaxLength(120);
+            entity.Property(item => item.ActorUserId).HasMaxLength(450);
+            entity.Property(item => item.ActorUserName).HasMaxLength(256);
+            entity.Property(item => item.ActorRoles).HasMaxLength(500);
+            entity.Property(item => item.Category).HasMaxLength(60);
+            entity.Property(item => item.TargetType).HasMaxLength(100);
+            entity.Property(item => item.TargetId).HasMaxLength(450);
+            entity.Property(item => item.Outcome).HasMaxLength(30);
+            entity.Property(item => item.Detail).HasMaxLength(2000);
+            entity.Property(item => item.CorrelationId).HasMaxLength(128);
+            entity.HasIndex(item => new { item.Category, item.OccurredAtUtc });
+            entity.HasIndex(item => item.ActorUserId);
+        });
         modelBuilder.Entity<Conversation>(entity =>
         {
             entity.Property(item => item.Title).HasMaxLength(200);
+            entity.Property(item => item.CreatedByUserId).HasMaxLength(450);
             entity.HasMany(item => item.Messages)
                 .WithOne(item => item.Conversation)
                 .HasForeignKey(item => item.ConversationId)
@@ -37,6 +66,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
         modelBuilder.Entity<StoredDocument>(entity =>
         {
+            entity.Property(item => item.ArchivedByUserId).HasMaxLength(450);
             entity.Property(item => item.OriginalName).HasMaxLength(260);
             entity.Property(item => item.StoredName).HasMaxLength(260);
             entity.Property(item => item.ContentType).HasMaxLength(150);
@@ -82,12 +112,38 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 
         modelBuilder.Entity<ScreeningRun>(entity =>
         {
+            entity.Property(item => item.CreatedByUserId).HasMaxLength(450);
+            entity.Property(item => item.UpdatedAtUtc).IsConcurrencyToken();
             entity.Property(item => item.Status).HasMaxLength(40);
             entity.Property(item => item.ProcessingMessage).HasMaxLength(1000);
             entity.HasOne(item => item.Template)
                 .WithMany()
                 .HasForeignKey(item => item.TemplateId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.HasMany(item => item.SourceFiles).WithOne(item => item.ScreeningRun).HasForeignKey(item => item.ScreeningRunId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<ProcessingSourceFile>(entity =>
+        {
+            entity.Property(item => item.OriginalName).HasMaxLength(260);
+            entity.Property(item => item.StoredName).HasMaxLength(260);
+            entity.Property(item => item.StoragePath).HasMaxLength(1000);
+            entity.Property(item => item.ContentType).HasMaxLength(150);
+            entity.Property(item => item.Sha256).HasMaxLength(64);
+            entity.Property(item => item.ExtractionStatus).HasMaxLength(40);
+            entity.Property(item => item.UploadedByUserId).HasMaxLength(450);
+            entity.HasIndex(item => new { item.ScreeningRunId, item.SourceFileIndex }).IsUnique();
+        });
+        modelBuilder.Entity<AuditRetentionPolicy>(entity =>
+        {
+            entity.HasKey(item => item.Category);
+            entity.Property(item => item.Category).HasMaxLength(60);
+            entity.Property(item => item.UpdatedByUserId).HasMaxLength(450);
+            entity.HasData(
+                new AuditRetentionPolicy { Category = "authentication", KeepForever = true, UpdatedAtUtc = new DateTime(2026, 11, 19, 0, 0, 0, DateTimeKind.Utc) },
+                new AuditRetentionPolicy { Category = "identity", KeepForever = true, UpdatedAtUtc = new DateTime(2026, 11, 19, 0, 0, 0, DateTimeKind.Utc) },
+                new AuditRetentionPolicy { Category = "configuration", KeepForever = true, UpdatedAtUtc = new DateTime(2026, 11, 19, 0, 0, 0, DateTimeKind.Utc) },
+                new AuditRetentionPolicy { Category = "processing", KeepForever = false, RetentionDays = 2555, UpdatedAtUtc = new DateTime(2026, 11, 19, 0, 0, 0, DateTimeKind.Utc) },
+                new AuditRetentionPolicy { Category = "audit-access", KeepForever = false, RetentionDays = 180, UpdatedAtUtc = new DateTime(2026, 11, 19, 0, 0, 0, DateTimeKind.Utc) });
         });
 
         modelBuilder.Entity<ScreeningRow>(entity =>
@@ -99,7 +155,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             entity.Property(item => item.SourceFileName).HasMaxLength(260);
             entity.Property(item => item.Status).HasMaxLength(40);
             entity.Property(item => item.Confidence).HasPrecision(5, 4);
-            entity.HasIndex(item => new { item.ScreeningRunId, item.TemplateRowNumber }).IsUnique();
+            entity.HasIndex(item => new { item.ScreeningRunId, item.SourceFileIndex, item.TemplateRowNumber }).IsUnique();
             entity.HasOne(item => item.ScreeningRun)
                 .WithMany(item => item.Rows)
                 .HasForeignKey(item => item.ScreeningRunId)

@@ -10,6 +10,10 @@ export type SourceItem = DocumentItem | {
 
 export type ChatWorkspaceProps = {
   current: ConversationDetails | null
+  canEdit: boolean
+  canUpload: boolean
+  canProcess: boolean
+  savePendingDocuments: () => Promise<void>
   pendingFiles: File[]
   prompt: string
   isLoading: boolean

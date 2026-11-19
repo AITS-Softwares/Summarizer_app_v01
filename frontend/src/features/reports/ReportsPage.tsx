@@ -8,6 +8,7 @@ type ReportsPageProps = {
   openConversation: (id: string) => Promise<void>
   restoreReport: (id: string) => Promise<void>
   deleteConversation: (id: string) => Promise<void>
+  canArchive: (caseId: string | null) => boolean
 }
 
 export function ReportsPage(props: ReportsPageProps) {
@@ -25,8 +26,7 @@ export function ReportsPage(props: ReportsPageProps) {
             <div className="truncate text-sm font-semibold">{report.title}</div>
             <div className="mt-1 text-[11px] text-[#97856b]">{report.documentCount} sources · {report.messageCount} messages · {formatDate(report.updatedAtUtc)}</div>
           </button>
-          <button type="button" className="secondary-button" onClick={() => void props.restoreReport(report.id)}><RefreshCw size={13} />Restore</button>
-          <button type="button" className="icon-button" aria-label={`Delete ${report.title}`} onClick={() => void props.deleteConversation(report.id)}><Trash2 size={15} /></button>
+          {props.canArchive(report.caseId ?? null) && <><button type="button" className="secondary-button" onClick={() => void props.restoreReport(report.id)}><RefreshCw size={13} />Restore</button><button type="button" className="icon-button" aria-label={`Archive ${report.title}`} onClick={() => void props.deleteConversation(report.id)}><Trash2 size={15} /></button></>}
         </div>
       )}
     />
