@@ -51,7 +51,12 @@ public sealed record ProviderSettingsResponse(
     bool HasApiKey,
     string ApiKeyType,
     string LocalBaseUrl,
-    string LocalModel);
+    string LocalModel,
+    string OcrProviderMode,
+    string AzureDocumentIntelligenceEndpoint,
+    bool HasAzureDocumentIntelligenceKey,
+    string AzureDocumentIntelligenceModel,
+    bool AzureUseAiFallback);
 public sealed record UpdateProviderSettingsRequest(
     string ProviderMode,
     string ApiBaseUrl,
@@ -59,7 +64,13 @@ public sealed record UpdateProviderSettingsRequest(
     string? ApiKey,
     bool ClearApiKey,
     string LocalBaseUrl,
-    string LocalModel);
+    string LocalModel,
+    string OcrProviderMode,
+    string AzureDocumentIntelligenceEndpoint,
+    string? AzureDocumentIntelligenceKey,
+    bool ClearAzureDocumentIntelligenceKey,
+    string AzureDocumentIntelligenceModel,
+    bool AzureUseAiFallback);
 public sealed record ProviderTestResponse(bool Success, string Message, string Provider, string Endpoint);
 public sealed record EntityMappingResponse(
     Guid Id,

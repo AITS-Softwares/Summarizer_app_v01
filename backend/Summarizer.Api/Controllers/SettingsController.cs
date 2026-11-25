@@ -11,7 +11,7 @@ namespace Summarizer.Api.Controllers;
 [ApiController]
 [Route("api/settings")]
 [Authorize(Policy = "SystemAdministration")]
-public sealed class SettingsController(AppDbContext dbContext, AiProviderService aiProviderService, AuditService auditService) : ControllerBase
+public sealed class SettingsController(AppDbContext dbContext, AiProviderService aiProviderService, AzureDocumentIntelligenceService azureDocumentIntelligenceService, AuditService auditService) : ControllerBase
 {
     [HttpGet]
     public async Task<ProviderSettingsResponse> Get(CancellationToken cancellationToken)
@@ -29,6 +29,7 @@ public sealed class SettingsController(AppDbContext dbContext, AiProviderService
         {
             return BadRequest("ProviderMode must be 'api' or 'local'.");
         }
+        if (request.OcrProviderMode is not ("ai" or "azure")) return BadRequest("OcrProviderMode must be 'ai' or 'azure'.");
 
         var settings = await GetSettingsAsync(cancellationToken);
         settings.ProviderMode = request.ProviderMode;
@@ -36,6 +37,10 @@ public sealed class SettingsController(AppDbContext dbContext, AiProviderService
         settings.ApiModel = request.ApiModel.Trim();
         settings.LocalBaseUrl = request.LocalBaseUrl.Trim().TrimEnd('/');
         settings.LocalModel = request.LocalModel.Trim();
+        settings.OcrProviderMode = request.OcrProviderMode;
+        settings.AzureDocumentIntelligenceEndpoint = AzureDocumentIntelligenceService.NormalizeEndpoint(request.AzureDocumentIntelligenceEndpoint);
+        settings.AzureDocumentIntelligenceModel = string.IsNullOrWhiteSpace(request.AzureDocumentIntelligenceModel) ? "prebuilt-layout" : request.AzureDocumentIntelligenceModel.Trim();
+        settings.AzureUseAiFallback = request.AzureUseAiFallback;
         settings.UpdatedAtUtc = DateTime.UtcNow;
 
         if (request.ClearApiKey)
@@ -46,9 +51,11 @@ public sealed class SettingsController(AppDbContext dbContext, AiProviderService
         {
             settings.ApiKeyEncrypted = aiProviderService.ProtectApiKey(request.ApiKey.Trim());
         }
+        if (request.ClearAzureDocumentIntelligenceKey) settings.AzureDocumentIntelligenceKeyEncrypted = null;
+        else if (!string.IsNullOrWhiteSpace(request.AzureDocumentIntelligenceKey)) settings.AzureDocumentIntelligenceKeyEncrypted = aiProviderService.ProtectApiKey(request.AzureDocumentIntelligenceKey.Trim());
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        await auditService.RecordAsync("configuration.provider.updated", targetType: "provider-settings", targetId: settings.Id.ToString(), detail: $"Mode: {settings.ProviderMode}; model: {(settings.ProviderMode == "local" ? settings.LocalModel : settings.ApiModel)}", cancellationToken: cancellationToken);
+        await auditService.RecordAsync("configuration.provider.updated", targetType: "provider-settings", targetId: settings.Id.ToString(), detail: $"AI mode: {settings.ProviderMode}; OCR: {settings.OcrProviderMode}", cancellationToken: cancellationToken);
         return Ok(ToResponse(settings));
     }
 
@@ -77,6 +84,17 @@ public sealed class SettingsController(AppDbContext dbContext, AiProviderService
             result.RequiresConfiguration ? result.Content : "Connection successful. The provider accepted the configured key and model.",
             providerName,
             endpoint));
+    }
+
+    [HttpPost("test-ocr")]
+    public async Task<ActionResult<ProviderTestResponse>> TestOcr(CancellationToken cancellationToken)
+    {
+        var settings = await GetSettingsAsync(cancellationToken);
+        if (settings.OcrProviderMode != "azure")
+            return BadRequest("Select Azure OCR before testing its connection.");
+        var result = await azureDocumentIntelligenceService.TestAsync(settings, cancellationToken);
+        await auditService.RecordAsync("configuration.ocr.tested", result.Success ? "success" : "failed", "provider-settings", settings.Id.ToString(), "Azure Document Intelligence", cancellationToken);
+        return Ok(result);
     }
 
     private async Task<ProviderSettings> GetSettingsAsync(CancellationToken cancellationToken)
@@ -108,5 +126,10 @@ public sealed class SettingsController(AppDbContext dbContext, AiProviderService
             !string.IsNullOrWhiteSpace(settings.ApiKeyEncrypted),
             aiProviderService.GetApiKeyType(settings),
             settings.LocalBaseUrl,
-            settings.LocalModel);
+            settings.LocalModel,
+            settings.OcrProviderMode,
+            settings.AzureDocumentIntelligenceEndpoint,
+            !string.IsNullOrWhiteSpace(settings.AzureDocumentIntelligenceKeyEncrypted),
+            settings.AzureDocumentIntelligenceModel,
+            settings.AzureUseAiFallback);
 }

@@ -81,6 +81,9 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
             entity.Property(item => item.ApiModel).HasMaxLength(150);
             entity.Property(item => item.LocalBaseUrl).HasMaxLength(500);
             entity.Property(item => item.LocalModel).HasMaxLength(150);
+            entity.Property(item => item.OcrProviderMode).HasMaxLength(20);
+            entity.Property(item => item.AzureDocumentIntelligenceEndpoint).HasMaxLength(500);
+            entity.Property(item => item.AzureDocumentIntelligenceModel).HasMaxLength(150);
             entity.HasData(new ProviderSettings
             {
                 Id = 1,

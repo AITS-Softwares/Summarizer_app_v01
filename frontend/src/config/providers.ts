@@ -46,6 +46,11 @@ export const defaultSettings: ProviderSettings = {
   apiKeyType: 'none',
   localBaseUrl: 'http://localhost:11434',
   localModel: 'qwen3:8b',
+  ocrProviderMode: 'ai',
+  azureDocumentIntelligenceEndpoint: '',
+  hasAzureDocumentIntelligenceKey: false,
+  azureDocumentIntelligenceModel: 'prebuilt-layout',
+  azureUseAiFallback: true,
 }
 
 export const getApiModels = (baseUrl: string) =>

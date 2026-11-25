@@ -17,6 +17,7 @@ public sealed class AiProviderService(
     private readonly IDataProtector _protector = dataProtectionProvider.CreateProtector("SummaryStudio.ApiKey.v1");
 
     public string ProtectApiKey(string apiKey) => _protector.Protect(apiKey);
+    public string UnprotectApiKey(string encryptedApiKey) => _protector.Unprotect(encryptedApiKey);
 
     public string GetApiKeyType(ProviderSettings settings)
     {

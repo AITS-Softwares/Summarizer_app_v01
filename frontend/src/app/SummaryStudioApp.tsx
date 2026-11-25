@@ -76,6 +76,7 @@ export function SummaryStudioApp({ user, onLogout }: SummaryStudioAppProps) {
   const [provider, setProvider] = useState<ProviderMode>('api')
   const [settings, setSettings] = useState<ProviderSettings>(defaultSettings)
   const [apiKey, setApiKey] = useState('')
+  const [azureOcrKey, setAzureOcrKey] = useState('')
   const [providerTest, setProviderTest] = useState<ProviderTestResult | null>(null)
   const [isTestingProvider, setIsTestingProvider] = useState(false)
   const [health, setHealth] = useState<HealthStatus | null>(null)
@@ -370,10 +371,11 @@ export function SummaryStudioApp({ user, onLogout }: SummaryStudioAppProps) {
     event.preventDefault()
     try {
       setIsLoading(true)
-      const saved = await api.updateSettings(settings, apiKey)
+      const saved = await api.updateSettings(settings, apiKey, azureOcrKey)
       setSettings(saved)
       setProvider(saved.providerMode)
       setApiKey('')
+      setAzureOcrKey('')
       setProviderTest(null)
       setNotice('Provider settings saved securely.')
     } catch (error) {
@@ -387,10 +389,11 @@ export function SummaryStudioApp({ user, onLogout }: SummaryStudioAppProps) {
     try {
       setIsTestingProvider(true)
       setProviderTest(null)
-      const saved = await api.updateSettings(settings, apiKey)
+      const saved = await api.updateSettings(settings, apiKey, azureOcrKey)
       setSettings(saved)
       setProvider(saved.providerMode)
       setApiKey('')
+      setAzureOcrKey('')
       setProviderTest(await api.testSettings())
     } catch (error) {
       setProviderTest({
@@ -399,6 +402,22 @@ export function SummaryStudioApp({ user, onLogout }: SummaryStudioAppProps) {
         provider: settings.providerMode === 'local' ? 'Ollama' : 'AI API',
         endpoint: settings.providerMode === 'local' ? settings.localBaseUrl : settings.apiBaseUrl,
       })
+    } finally {
+      setIsTestingProvider(false)
+    }
+  }
+
+  const testOcrProvider = async () => {
+    try {
+      setIsTestingProvider(true)
+      setProviderTest(null)
+      const saved = await api.updateSettings(settings, apiKey, azureOcrKey)
+      setSettings(saved)
+      setApiKey('')
+      setAzureOcrKey('')
+      setProviderTest(await api.testOcrSettings())
+    } catch (error) {
+      setProviderTest({ success: false, message: error instanceof Error ? error.message : 'Azure OCR connection test failed.', provider: 'Azure Document Intelligence', endpoint: settings.azureDocumentIntelligenceEndpoint })
     } finally {
       setIsTestingProvider(false)
     }
@@ -530,13 +549,16 @@ export function SummaryStudioApp({ user, onLogout }: SummaryStudioAppProps) {
             <SettingsPage
               settings={settings}
               apiKey={apiKey}
+              azureOcrKey={azureOcrKey}
               isLoading={isLoading}
               isTestingProvider={isTestingProvider}
               providerTest={providerTest}
               setSettings={setSettings}
               setApiKey={setApiKey}
+              setAzureOcrKey={setAzureOcrKey}
               onSave={saveSettings}
               onTest={testProvider}
+              onTestOcr={testOcrProvider}
               onBack={() => setView('chats')}
             />
           )}

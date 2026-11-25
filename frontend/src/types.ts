@@ -95,6 +95,11 @@ export type ProviderSettings = {
   apiKeyType: 'none' | 'anthropic' | 'openrouter' | 'groq' | 'openai' | 'unknown' | 'unreadable'
   localBaseUrl: string
   localModel: string
+  ocrProviderMode: 'ai' | 'azure'
+  azureDocumentIntelligenceEndpoint: string
+  hasAzureDocumentIntelligenceKey: boolean
+  azureDocumentIntelligenceModel: string
+  azureUseAiFallback: boolean
 }
 
 export type ProviderTestResult = {

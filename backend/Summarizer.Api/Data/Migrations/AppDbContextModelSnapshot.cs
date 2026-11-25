@@ -551,6 +551,22 @@ namespace Summarizer.Api.Data.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
+                    b.Property<string>("AzureDocumentIntelligenceEndpoint")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("AzureDocumentIntelligenceKeyEncrypted")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("AzureDocumentIntelligenceModel")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<bool>("AzureUseAiFallback")
+                        .HasColumnType("bit");
+
                     b.Property<string>("LocalBaseUrl")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -560,6 +576,11 @@ namespace Summarizer.Api.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("OcrProviderMode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<string>("ProviderMode")
                         .IsRequired()
@@ -579,8 +600,12 @@ namespace Summarizer.Api.Data.Migrations
                             Id = 1,
                             ApiBaseUrl = "https://api.openai.com/v1",
                             ApiModel = "gpt-4.1-mini",
+                            AzureDocumentIntelligenceEndpoint = "",
+                            AzureDocumentIntelligenceModel = "prebuilt-layout",
+                            AzureUseAiFallback = true,
                             LocalBaseUrl = "http://localhost:11434",
                             LocalModel = "qwen3:8b",
+                            OcrProviderMode = "ai",
                             ProviderMode = "api",
                             UpdatedAtUtc = new DateTime(2026, 6, 15, 0, 0, 0, 0, DateTimeKind.Utc)
                         });

@@ -78,6 +78,11 @@ public sealed class ProviderSettings
     public string? ApiKeyEncrypted { get; set; }
     public string LocalBaseUrl { get; set; } = "http://localhost:11434";
     public string LocalModel { get; set; } = "qwen3:8b";
+    public string OcrProviderMode { get; set; } = "ai";
+    public string AzureDocumentIntelligenceEndpoint { get; set; } = string.Empty;
+    public string? AzureDocumentIntelligenceKeyEncrypted { get; set; }
+    public string AzureDocumentIntelligenceModel { get; set; } = "prebuilt-layout";
+    public bool AzureUseAiFallback { get; set; } = true;
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
 }
 

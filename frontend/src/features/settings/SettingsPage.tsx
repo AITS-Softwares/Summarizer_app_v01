@@ -16,26 +16,32 @@ import type { ProviderMode, ProviderSettings, ProviderTestResult } from '../../t
 type SettingsPageProps = {
   settings: ProviderSettings
   apiKey: string
+  azureOcrKey: string
   isLoading: boolean
   isTestingProvider: boolean
   providerTest: ProviderTestResult | null
   setSettings: (settings: ProviderSettings) => void
   setApiKey: (value: string) => void
+  setAzureOcrKey: (value: string) => void
   onSave: (event: FormEvent) => void
   onTest: () => void
+  onTestOcr: () => void
   onBack: () => void
 }
 
 export function SettingsPage({
   settings,
   apiKey,
+  azureOcrKey,
   isLoading,
   isTestingProvider,
   providerTest,
   setSettings,
   setApiKey,
+  setAzureOcrKey,
   onSave,
   onTest,
+  onTestOcr,
   onBack,
 }: SettingsPageProps) {
   const activeApiPreset = apiProviderPresets.find((preset) => preset.baseUrl === settings.apiBaseUrl)
@@ -156,6 +162,19 @@ export function SettingsPage({
               </div>
             </div>
           )}
+          <section className="mt-7 border-t border-[#eee3d1] pt-6">
+            <div><h3 className="text-base font-bold">Scanned PDF OCR</h3><p className="mt-1 text-xs leading-5 text-[#8f7d64]">This is separate from the general AI connection above. It affects only scanned PDFs in template processing.</p></div>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <button type="button" className={`provider-card ${settings.ocrProviderMode === 'ai' ? 'provider-card-active' : ''}`} onClick={() => setSettings({ ...settings, ocrProviderMode: 'ai' })}><Cloud size={20} /><div className="text-left"><div className="text-sm font-bold">AI vision</div><div className="mt-1 text-[10px] text-[#917e62]">Current Claude/vision process</div></div></button>
+              <button type="button" className={`provider-card ${settings.ocrProviderMode === 'azure' ? 'provider-card-active' : ''}`} onClick={() => setSettings({ ...settings, ocrProviderMode: 'azure' })}><Cloud size={20} /><div className="text-left"><div className="text-sm font-bold">Azure OCR</div><div className="mt-1 text-[10px] text-[#917e62]">Document Intelligence Layout</div></div></button>
+            </div>
+            {settings.ocrProviderMode === 'azure' && <div className="mt-5 space-y-4 rounded-xl border border-[#dbe5ef] bg-[#f5f9fc] p-4">
+              <div><label className="field-label">Azure Document Intelligence endpoint</label><input aria-label="Azure Document Intelligence endpoint" className="field-input" value={settings.azureDocumentIntelligenceEndpoint} onChange={(event) => setSettings({ ...settings, azureDocumentIntelligenceEndpoint: event.target.value })} placeholder="https://your-resource.cognitiveservices.azure.com" /><p className="field-help">Use the resource endpoint only; do not include an API route.</p></div>
+              <div className="grid gap-4 sm:grid-cols-2"><div><label className="field-label">Azure API key {settings.hasAzureDocumentIntelligenceKey && <span className="text-[#4f9268]">· configured</span>}</label><input aria-label="Azure API key" type="password" className="field-input" value={azureOcrKey} placeholder={settings.hasAzureDocumentIntelligenceKey ? 'Leave blank to keep current key' : 'Paste Azure key'} onChange={(event) => setAzureOcrKey(event.target.value)} /></div><div><label className="field-label">Document model</label><input aria-label="Azure document model" className="field-input" value={settings.azureDocumentIntelligenceModel} onChange={(event) => setSettings({ ...settings, azureDocumentIntelligenceModel: event.target.value })} placeholder="prebuilt-layout" /></div></div>
+              <label className="flex items-start gap-2 text-xs text-[#5d7185]"><input className="mt-0.5" type="checkbox" checked={settings.azureUseAiFallback} onChange={(event) => setSettings({ ...settings, azureUseAiFallback: event.target.checked })} /><span><strong>Use AI vision for unmatched template fields.</strong> Azure handles OCR first; only empty fields are sent to the configured AI provider.</span></label>
+              <button type="button" className="secondary-button" disabled={isTestingProvider || isLoading} onClick={onTestOcr}>{isTestingProvider ? <LoaderCircle size={14} className="animate-spin" /> : <RefreshCw size={14} />}Test Azure OCR connection</button>
+            </div>}
+          </section>
           <div className="mt-7 flex items-center justify-between border-t border-[#eee3d1] pt-5">
             <div className="flex items-center gap-2 text-[10px] text-[#928069]"><Database size={14} />Settings saved in SQL Server</div>
             <div className="flex items-center gap-2">

@@ -14,7 +14,7 @@ namespace Summarizer.Api.Controllers;
 [ApiController]
 [Route("api/screening")]
 [Authorize(Policy = "ProcessingAdministration")]
-public sealed class ScreeningController(AppDbContext db, DocumentTextExtractor textExtractor, ScreeningProcessorService processor, VisionScreeningExtractor visionExtractor, IConfiguration config, IWebHostEnvironment environment, AuditService audit) : ControllerBase
+public sealed class ScreeningController(AppDbContext db, DocumentTextExtractor textExtractor, ScreeningProcessorService processor, VisionScreeningExtractor visionExtractor, AzureDocumentIntelligenceService azureDocumentIntelligenceService, IConfiguration config, IWebHostEnvironment environment, AuditService audit) : ControllerBase
 {
     [HttpGet("templates")]
     public async Task<IReadOnlyCollection<ScreeningTemplateResponse>> GetTemplates(CancellationToken token) =>
@@ -59,10 +59,35 @@ public sealed class ScreeningController(AppDbContext db, DocumentTextExtractor t
             if (extraction.Status == "ocr-required" && Path.GetExtension(name).Equals(".pdf", StringComparison.OrdinalIgnoreCase)) scanned.Add(new ScannedScreeningSource(index, name, path));
         }
         var templateRows = ScreeningProcessorService.DeserializeRows(template.RowsJson); var suggestions = processor.SuggestRows(templateRows, sources).ToList(); string? message = null;
+        var settings = await db.ProviderSettings.SingleAsync(x => x.Id == 1, token);
         foreach (var source in scanned)
         {
-            var settings = await db.ProviderSettings.SingleAsync(x => x.Id == 1, token); var result = await visionExtractor.ExtractAsync(templateRows, source, settings, token);
-            if (result.ConfigurationMessage is null) { suggestions.RemoveAll(x => x.SourceFileIndex == source.Index); suggestions.AddRange(result.Suggestions); } else message ??= result.ConfigurationMessage;
+            if (settings.OcrProviderMode == "azure")
+            {
+                var azure = await azureDocumentIntelligenceService.ExtractAsync(source.StoragePath, settings, token);
+                if (azure.ConfigurationMessage is not null) { message ??= azure.ConfigurationMessage; continue; }
+
+                var azureSuggestions = processor.SuggestRows(templateRows, [new ScreeningSource(source.Index, source.Name, azure.Text, "ready")]).ToList();
+                suggestions.RemoveAll(item => item.SourceFileIndex == source.Index);
+                suggestions.AddRange(azureSuggestions);
+
+                var missingRows = azureSuggestions.Where(item => string.IsNullOrWhiteSpace(item.EntityName)).Select(item => new TemplateRowDefinition(item.TemplateRowNumber, item.Heading)).ToArray();
+                if (settings.AzureUseAiFallback && missingRows.Length > 0)
+                {
+                    var fallback = await visionExtractor.ExtractAsync(missingRows, source, settings, token);
+                    if (fallback.ConfigurationMessage is null)
+                    {
+                        suggestions.RemoveAll(item => item.SourceFileIndex == source.Index && missingRows.Any(row => row.RowNumber == item.TemplateRowNumber));
+                        suggestions.AddRange(fallback.Suggestions);
+                    }
+                    else message ??= $"Azure OCR completed, but AI fallback was unavailable: {fallback.ConfigurationMessage}";
+                }
+            }
+            else
+            {
+                var result = await visionExtractor.ExtractAsync(templateRows, source, settings, token);
+                if (result.ConfigurationMessage is null) { suggestions.RemoveAll(x => x.SourceFileIndex == source.Index); suggestions.AddRange(result.Suggestions); } else message ??= result.ConfigurationMessage;
+            }
         }
         run.SourceFilesJson = JsonSerializer.Serialize(sourceNames);
         run.Rows = suggestions.Select(x => new ScreeningRow { TemplateRowNumber = x.TemplateRowNumber, SourceFileIndex = x.SourceFileIndex, Heading = x.Heading, EntityName = x.EntityName, EntityTypeCode = x.EntityTypeCode, ExtractedFieldsJson = JsonSerializer.Serialize(CreateFields(x.EntityName, x.EntityTypeCode)), SourceFileName = x.SourceFileName, SourcePageNumber = x.SourcePageNumber, Confidence = x.Confidence, Status = x.Status }).ToList();

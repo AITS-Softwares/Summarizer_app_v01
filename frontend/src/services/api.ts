@@ -138,13 +138,16 @@ export const api = {
     }),
   settings: () => request<ProviderSettings>('/api/settings'),
   testSettings: () => request<ProviderTestResult>('/api/settings/test', { method: 'POST' }),
-  updateSettings: (settings: ProviderSettings, apiKey: string, clearApiKey = false) =>
+  testOcrSettings: () => request<ProviderTestResult>('/api/settings/test-ocr', { method: 'POST' }),
+  updateSettings: (settings: ProviderSettings, apiKey: string, azureDocumentIntelligenceKey: string, clearApiKey = false, clearAzureDocumentIntelligenceKey = false) =>
     request<ProviderSettings>('/api/settings', {
       method: 'PUT',
       body: JSON.stringify({
         ...settings,
         apiKey: apiKey || null,
         clearApiKey,
+        azureDocumentIntelligenceKey: azureDocumentIntelligenceKey || null,
+        clearAzureDocumentIntelligenceKey,
       }),
     }),
 }

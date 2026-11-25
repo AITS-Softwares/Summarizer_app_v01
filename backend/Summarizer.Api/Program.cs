@@ -64,6 +64,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<AuditService>();
 builder.Services.AddHostedService<AuditRetentionWorker>();
 builder.Services.AddScoped<AiProviderService>();
+builder.Services.AddScoped<AzureDocumentIntelligenceService>();
 builder.Services.AddScoped<DocumentTextExtractor>();
 builder.Services.AddScoped<ScreeningProcessorService>();
 builder.Services.AddScoped<VisionScreeningExtractor>();
