@@ -92,7 +92,7 @@ public sealed class EntityMappingsController(AppDbContext dbContext) : Controlle
     [HttpPost("bulk-import")]
     [RequestSizeLimit(MaximumImportSizeBytes)]
     public async Task<ActionResult<EntityMappingImportResponse>> BulkImport(
-        [FromForm] IFormFile file,
+        IFormFile file,
         CancellationToken cancellationToken)
     {
         if (file is null || file.Length == 0) return BadRequest("Choose a CSV, XLS, or XLSX file to import.");

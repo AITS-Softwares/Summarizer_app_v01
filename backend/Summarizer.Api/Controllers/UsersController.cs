@@ -46,6 +46,33 @@ public sealed class UsersController(AppDbContext dbContext, UserManager<Applicat
         return CreatedAtAction(nameof(GetAll), await ToResponse(user));
     }
 
+    [HttpPut("{id}")]
+    [Authorize(Policy = "UserAdministration")]
+    public async Task<ActionResult<ManagedUserResponse>> Update(string id, UpdateUserRequest request, CancellationToken cancellationToken)
+    {
+        var user = await userManager.FindByIdAsync(id);
+        if (user is null) return NotFound();
+        if (user.Id == User.FindFirstValue(ClaimTypes.NameIdentifier)) return BadRequest("Administrators cannot edit their own account here.");
+        if (string.IsNullOrWhiteSpace(request.UserName) || string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.DisplayName)) return BadRequest("Username, email, and display name are required.");
+        var roles = ValidateRoles(request.Roles);
+        if (roles is null || roles.Count == 0) return BadRequest("Assign at least one valid role.");
+        if (!CanManageRoles(roles)) return Forbid();
+
+        user.UserName = request.UserName.Trim();
+        user.Email = request.Email.Trim();
+        user.DisplayName = request.DisplayName.Trim();
+        var update = await userManager.UpdateAsync(user);
+        if (!update.Succeeded) return BadRequest(string.Join(" ", update.Errors.Select(item => item.Description)));
+
+        var existing = await userManager.GetRolesAsync(user);
+        var remove = await userManager.RemoveFromRolesAsync(user, existing);
+        if (!remove.Succeeded) return BadRequest(string.Join(" ", remove.Errors.Select(item => item.Description)));
+        var add = await userManager.AddToRolesAsync(user, roles);
+        if (!add.Succeeded) return BadRequest(string.Join(" ", add.Errors.Select(item => item.Description)));
+
+        await auditService.RecordAsync("identity.user.updated", targetType: "user", targetId: user.Id, detail: $"Roles: {string.Join(", ", roles)}", cancellationToken: cancellationToken);
+        return Ok(await ToResponse(user));
+    }
     [HttpPut("{id}/roles")]
     [Authorize(Policy = "UserAdministration")]
     public async Task<ActionResult<ManagedUserResponse>> UpdateRoles(string id, UpdateUserRolesRequest request, CancellationToken cancellationToken)
@@ -78,6 +105,26 @@ public sealed class UsersController(AppDbContext dbContext, UserManager<Applicat
         return Ok(await ToResponse(user));
     }
 
+    [HttpDelete("{id}")]
+    [Authorize(Policy = "UserAdministration")]
+    public async Task<IActionResult> Delete(string id, CancellationToken cancellationToken)
+    {
+        var user = await userManager.FindByIdAsync(id);
+        if (user is null) return NotFound();
+        if (user.Id == User.FindFirstValue(ClaimTypes.NameIdentifier)) return BadRequest("Administrators cannot delete their own account.");
+        var roles = await userManager.GetRolesAsync(user);
+        if (roles.Contains("SystemAdministrator", StringComparer.Ordinal))
+        {
+            var otherActiveAdmins = (await userManager.GetUsersInRoleAsync("SystemAdministrator"))
+                .Count(item => item.IsActive && item.Id != user.Id);
+            if (user.IsActive && otherActiveAdmins == 0) return BadRequest("The last active System Administrator cannot be deleted.");
+        }
+
+        var result = await userManager.DeleteAsync(user);
+        if (!result.Succeeded) return BadRequest(string.Join(" ", result.Errors.Select(item => item.Description)));
+        await auditService.RecordAsync("identity.user.deleted", targetType: "user", targetId: user.Id, detail: $"Deleted account {user.UserName}", cancellationToken: cancellationToken);
+        return NoContent();
+    }
     private async Task<ManagedUserResponse> ToResponse(ApplicationUser user) => new(user.Id, user.UserName ?? string.Empty, user.DisplayName, user.Email ?? string.Empty, user.IsActive, user.MustChangePassword, user.CreatedAtUtc, user.LastLoginAtUtc, (await userManager.GetRolesAsync(user)).ToArray());
     private static IReadOnlyCollection<string>? ValidateRoles(IReadOnlyCollection<string> roles) => roles.All(role => AllowedRoles.Contains(role, StringComparer.Ordinal)) ? roles.Distinct(StringComparer.Ordinal).ToArray() : null;
     private bool CanManageRoles(IReadOnlyCollection<string> roles) => User.IsInRole("SystemAdministrator") || roles.All(role => role is "Analyst" or "Reviewer" or "Auditor" or "ReadOnly");

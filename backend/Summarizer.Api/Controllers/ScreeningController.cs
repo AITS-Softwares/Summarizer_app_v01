@@ -22,7 +22,7 @@ public sealed class ScreeningController(AppDbContext db, DocumentTextExtractor t
 
     [HttpPost("templates")]
     [RequestSizeLimit(20 * 1024 * 1024)]
-    public async Task<ActionResult<ScreeningTemplateResponse>> RegisterTemplate([FromForm] string name, [FromForm] string version, [FromForm] IFormFile file, CancellationToken token)
+    public async Task<ActionResult<ScreeningTemplateResponse>> RegisterTemplate([FromForm] string name, [FromForm] string version, IFormFile file, CancellationToken token)
     {
         if (file is null || file.Length == 0 || !Path.GetExtension(file.FileName).Equals(".xlsx", StringComparison.OrdinalIgnoreCase)) return BadRequest("Choose an XLSX template.");
         TemplateDefinition definition;
@@ -39,7 +39,7 @@ public sealed class ScreeningController(AppDbContext db, DocumentTextExtractor t
 
     [HttpPost("runs")]
     [RequestSizeLimit(100 * 1024 * 1024)]
-    public async Task<ActionResult<ScreeningRunResponse>> CreateRun([FromForm] Guid templateId, [FromForm] List<IFormFile> files, CancellationToken token)
+    public async Task<ActionResult<ScreeningRunResponse>> CreateRun([FromForm] Guid templateId, List<IFormFile> files, CancellationToken token)
     {
         var uploaded = files.Where(x => x.Length > 0).ToArray();
         if (uploaded.Length == 0) return BadRequest("Attach at least one source file.");

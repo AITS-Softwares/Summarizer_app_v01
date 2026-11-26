@@ -56,6 +56,8 @@ export const api = {
   changePassword: (currentPassword: string, newPassword: string) => request<CurrentUser>('/api/auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
   users: () => request<ManagedUser[]>('/api/users'),
   createUser: (userName: string, email: string, displayName: string, temporaryPassword: string, roles: string[]) => request<ManagedUser>('/api/users', { method: 'POST', body: JSON.stringify({ userName, email, displayName, temporaryPassword, roles }) }),
+  updateUser: (id: string, userName: string, email: string, displayName: string, roles: string[]) => request<ManagedUser>(`/api/users/${id}`, { method: 'PUT', body: JSON.stringify({ userName, email, displayName, roles }) }),
+  deleteUser: (id: string) => request<void>(`/api/users/${id}`, { method: 'DELETE' }),
   updateUserRoles: (id: string, roles: string[]) => request<ManagedUser>(`/api/users/${id}/roles`, { method: 'PUT', body: JSON.stringify({ roles }) }),
   disableUser: (id: string, reason?: string) => request<ManagedUser>(`/api/users/${id}/disable`, { method: 'POST', body: JSON.stringify({ reason: reason || null }) }),
   auditEvents: (take = 200) => request<AuditEvent[]>(`/api/audit-events?take=${take}`),
