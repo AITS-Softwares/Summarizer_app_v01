@@ -40,6 +40,7 @@ export const localModelPresets = [
 
 export const defaultSettings: ProviderSettings = {
   providerMode: 'api',
+  screeningProviderMode: 'api',
   apiBaseUrl: 'https://api.openai.com/v1',
   apiModel: 'gpt-4.1-mini',
   hasApiKey: false,

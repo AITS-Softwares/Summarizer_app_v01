@@ -29,10 +29,12 @@ public sealed class SettingsController(AppDbContext dbContext, AiProviderService
         {
             return BadRequest("ProviderMode must be 'api' or 'local'.");
         }
+        if (request.ScreeningProviderMode is not ("api" or "local" or "azure")) return BadRequest("ScreeningProviderMode must be 'api', 'local', or 'azure'.");
         if (request.OcrProviderMode is not ("ai" or "azure")) return BadRequest("OcrProviderMode must be 'ai' or 'azure'.");
 
         var settings = await GetSettingsAsync(cancellationToken);
         settings.ProviderMode = request.ProviderMode;
+        settings.ScreeningProviderMode = request.ScreeningProviderMode;
         settings.ApiBaseUrl = AiProviderService.NormalizeApiBaseUrl(request.ApiBaseUrl);
         settings.ApiModel = request.ApiModel.Trim();
         settings.LocalBaseUrl = request.LocalBaseUrl.Trim().TrimEnd('/');
@@ -55,7 +57,7 @@ public sealed class SettingsController(AppDbContext dbContext, AiProviderService
         else if (!string.IsNullOrWhiteSpace(request.AzureDocumentIntelligenceKey)) settings.AzureDocumentIntelligenceKeyEncrypted = aiProviderService.ProtectApiKey(request.AzureDocumentIntelligenceKey.Trim());
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        await auditService.RecordAsync("configuration.provider.updated", targetType: "provider-settings", targetId: settings.Id.ToString(), detail: $"AI mode: {settings.ProviderMode}; OCR: {settings.OcrProviderMode}", cancellationToken: cancellationToken);
+        await auditService.RecordAsync("configuration.provider.updated", targetType: "provider-settings", targetId: settings.Id.ToString(), detail: $"AI mode: {settings.ProviderMode}; screening: {settings.ScreeningProviderMode}", cancellationToken: cancellationToken);
         return Ok(ToResponse(settings));
     }
 
@@ -90,8 +92,8 @@ public sealed class SettingsController(AppDbContext dbContext, AiProviderService
     public async Task<ActionResult<ProviderTestResponse>> TestOcr(CancellationToken cancellationToken)
     {
         var settings = await GetSettingsAsync(cancellationToken);
-        if (settings.OcrProviderMode != "azure")
-            return BadRequest("Select Azure OCR before testing its connection.");
+        if (settings.ScreeningProviderMode != "azure")
+            return BadRequest("Select Azure for OCR or Case Processing before testing its connection.");
         var result = await azureDocumentIntelligenceService.TestAsync(settings, cancellationToken);
         await auditService.RecordAsync("configuration.ocr.tested", result.Success ? "success" : "failed", "provider-settings", settings.Id.ToString(), "Azure Document Intelligence", cancellationToken);
         return Ok(result);
@@ -121,6 +123,7 @@ public sealed class SettingsController(AppDbContext dbContext, AiProviderService
     private ProviderSettingsResponse ToResponse(ProviderSettings settings) =>
         new(
             settings.ProviderMode,
+            settings.ScreeningProviderMode,
             settings.ApiBaseUrl,
             settings.ApiModel,
             !string.IsNullOrWhiteSpace(settings.ApiKeyEncrypted),

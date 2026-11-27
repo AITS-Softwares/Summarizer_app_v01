@@ -73,6 +73,7 @@ public sealed class ProviderSettings
 {
     public int Id { get; set; } = 1;
     public string ProviderMode { get; set; } = "api";
+      public string ScreeningProviderMode { get; set; } = "api";
     public string ApiBaseUrl { get; set; } = "https://api.openai.com/v1";
     public string ApiModel { get; set; } = "gpt-4.1-mini";
     public string? ApiKeyEncrypted { get; set; }
@@ -162,6 +163,7 @@ public sealed class ScreeningRow
     public Guid ScreeningRunId { get; set; }
     public ScreeningRun ScreeningRun { get; set; } = null!;
     public int TemplateRowNumber { get; set; }
+    public int BolIndex { get; set; } = 1;
     public int SourceFileIndex { get; set; }
     public string Heading { get; set; } = string.Empty;
     public string? EntityName { get; set; }

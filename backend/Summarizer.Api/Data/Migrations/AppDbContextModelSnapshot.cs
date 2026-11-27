@@ -587,6 +587,11 @@ namespace Summarizer.Api.Data.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<string>("ScreeningProviderMode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
 
@@ -607,6 +612,7 @@ namespace Summarizer.Api.Data.Migrations
                             LocalModel = "qwen3:8b",
                             OcrProviderMode = "ai",
                             ProviderMode = "api",
+                            ScreeningProviderMode = "api",
                             UpdatedAtUtc = new DateTime(2026, 6, 15, 0, 0, 0, 0, DateTimeKind.Utc)
                         });
                 });
@@ -616,6 +622,9 @@ namespace Summarizer.Api.Data.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("BolIndex")
+                        .HasColumnType("int");
 
                     b.Property<decimal>("Confidence")
                         .HasPrecision(5, 4)
@@ -664,7 +673,7 @@ namespace Summarizer.Api.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ScreeningRunId", "SourceFileIndex", "TemplateRowNumber")
+                    b.HasIndex("ScreeningRunId", "SourceFileIndex", "BolIndex", "TemplateRowNumber")
                         .IsUnique();
 
                     b.ToTable("ScreeningRows");

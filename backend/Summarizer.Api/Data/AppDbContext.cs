@@ -77,6 +77,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
         {
             entity.HasKey(item => item.Id);
             entity.Property(item => item.ProviderMode).HasMaxLength(20);
+            entity.Property(item => item.ScreeningProviderMode).HasMaxLength(20);
             entity.Property(item => item.ApiBaseUrl).HasMaxLength(500);
             entity.Property(item => item.ApiModel).HasMaxLength(150);
             entity.Property(item => item.LocalBaseUrl).HasMaxLength(500);
@@ -158,7 +159,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : Ident
             entity.Property(item => item.SourceFileName).HasMaxLength(260);
             entity.Property(item => item.Status).HasMaxLength(40);
             entity.Property(item => item.Confidence).HasPrecision(5, 4);
-            entity.HasIndex(item => new { item.ScreeningRunId, item.SourceFileIndex, item.TemplateRowNumber }).IsUnique();
+            entity.HasIndex(item => new { item.ScreeningRunId, item.SourceFileIndex, item.BolIndex, item.TemplateRowNumber }).IsUnique();
             entity.HasOne(item => item.ScreeningRun)
                 .WithMany(item => item.Rows)
                 .HasForeignKey(item => item.ScreeningRunId)

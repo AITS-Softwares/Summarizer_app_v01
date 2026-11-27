@@ -89,6 +89,7 @@ export type ConversationDetails = {
 
 export type ProviderSettings = {
   providerMode: ProviderMode
+  screeningProviderMode: ProviderMode | 'azure'
   apiBaseUrl: string
   apiModel: string
   hasApiKey: boolean
@@ -157,6 +158,7 @@ export type ScreeningTemplate = {
 export type ScreeningRow = {
   id: string
   templateRowNumber: number
+  bolIndex: number
   sourceFileIndex: number
   heading: string
   entityName: string | null

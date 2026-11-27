@@ -8,7 +8,7 @@ namespace Summarizer.Api.Services;
 public sealed record TemplateRowDefinition(int RowNumber, string Heading);
 public sealed record TemplateDefinition(string WorksheetName, int HeaderRowNumber, IReadOnlyCollection<TemplateRowDefinition> Rows, IReadOnlyDictionary<string, int> Columns);
 public sealed record ScreeningSource(int Index, string Name, string? Text, string Status);
-public sealed record SuggestedScreeningRow(int SourceFileIndex, string Heading, int TemplateRowNumber, string? EntityName, string? EntityTypeCode, string? SourceFileName, int? SourcePageNumber, decimal Confidence, string Status, IReadOnlyDictionary<string, string>? Fields = null);
+public sealed record SuggestedScreeningRow(int SourceFileIndex, string Heading, int TemplateRowNumber, string? EntityName, string? EntityTypeCode, string? SourceFileName, int? SourcePageNumber, decimal Confidence, string Status, IReadOnlyDictionary<string, string>? Fields = null, int BolIndex = 1);
 
 public sealed class ScreeningProcessorService
 {
@@ -49,15 +49,20 @@ public sealed class ScreeningProcessorService
         var headingColumn = FindColumn(sheet, template.HeaderRowNumber, "heading");
 
         var templateRows = DeserializeRows(template.RowsJson).OrderBy(row => row.RowNumber).ToArray();
-        var rowsBySource = rows.GroupBy(row => row.SourceFileIndex).OrderBy(group => group.Key).ToArray();
-        foreach (var sourceRows in rowsBySource)
+        var bolGroups = rows
+            .GroupBy(row => new { row.SourceFileIndex, row.BolIndex })
+            .OrderBy(group => group.Key.SourceFileIndex)
+            .ThenBy(group => group.Key.BolIndex)
+            .ToArray();
+        for (var groupIndex = 0; groupIndex < bolGroups.Length; groupIndex++)
         {
-            var sourceRowsByTemplate = sourceRows.ToDictionary(row => row.TemplateRowNumber);
-            var sourcePosition = Array.IndexOf(rowsBySource, sourceRows);
+            var bolRows = bolGroups[groupIndex];
+            var sourceRowsByTemplate = bolRows.ToDictionary(row => row.TemplateRowNumber);
             foreach (var templateRow in templateRows)
             {
-                var outputRowNumber = template.HeaderRowNumber + sourcePosition * templateRows.Length + Array.IndexOf(templateRows, templateRow) + 1;
-                if (sourcePosition > 0) sheet.Row(templateRow.RowNumber).CopyTo(sheet.Row(outputRowNumber));
+                var templatePosition = Array.IndexOf(templateRows, templateRow);
+                var outputRowNumber = template.HeaderRowNumber + groupIndex * templateRows.Length + templatePosition + 1;
+                if (groupIndex > 0) sheet.Row(templateRow.RowNumber).CopyTo(sheet.Row(outputRowNumber));
                 if (!sourceRowsByTemplate.TryGetValue(templateRow.RowNumber, out var row)) continue;
                 var fields = JsonSerializer.Deserialize<Dictionary<string, string>>(row.ExtractedFieldsJson) ?? [];
                 foreach (var cell in sheet.Row(template.HeaderRowNumber).CellsUsed())
@@ -75,23 +80,25 @@ public sealed class ScreeningProcessorService
 
         var evidence = workbook.Worksheets.Add("Processing Evidence");
         evidence.Cell(1, 1).Value = "Source file";
-        evidence.Cell(1, 2).Value = "Template row";
-        evidence.Cell(1, 3).Value = "Heading";
-        evidence.Cell(1, 4).Value = "Source page";
-        evidence.Cell(1, 5).Value = "Confidence";
-        evidence.Cell(1, 6).Value = "Status";
-        evidence.Cell(1, 7).Value = "Extracted name";
+        evidence.Cell(1, 2).Value = "BOL number";
+        evidence.Cell(1, 3).Value = "Template row";
+        evidence.Cell(1, 4).Value = "Heading";
+        evidence.Cell(1, 5).Value = "Source page";
+        evidence.Cell(1, 6).Value = "Confidence";
+        evidence.Cell(1, 7).Value = "Status";
+        evidence.Cell(1, 8).Value = "Extracted name";
         foreach (var header in evidence.Row(1).CellsUsed()) header.Style.Font.Bold = true;
         var evidenceRow = 2;
-        foreach (var row in rows.OrderBy(row => row.SourceFileIndex).ThenBy(row => row.TemplateRowNumber))
+        foreach (var row in rows.OrderBy(row => row.SourceFileIndex).ThenBy(row => row.BolIndex).ThenBy(row => row.TemplateRowNumber))
         {
             evidence.Cell(evidenceRow, 1).Value = row.SourceFileName ?? string.Empty;
-            evidence.Cell(evidenceRow, 2).Value = row.TemplateRowNumber;
-            evidence.Cell(evidenceRow, 3).Value = row.Heading;
-            evidence.Cell(evidenceRow, 4).Value = row.SourcePageNumber;
-            evidence.Cell(evidenceRow, 5).Value = row.Confidence;
-            evidence.Cell(evidenceRow, 6).Value = row.Status;
-            evidence.Cell(evidenceRow, 7).Value = row.EntityName ?? string.Empty;
+            evidence.Cell(evidenceRow, 2).Value = row.BolIndex;
+            evidence.Cell(evidenceRow, 3).Value = row.TemplateRowNumber;
+            evidence.Cell(evidenceRow, 4).Value = row.Heading;
+            evidence.Cell(evidenceRow, 5).Value = row.SourcePageNumber;
+            evidence.Cell(evidenceRow, 6).Value = row.Confidence;
+            evidence.Cell(evidenceRow, 7).Value = row.Status;
+            evidence.Cell(evidenceRow, 8).Value = row.EntityName ?? string.Empty;
             evidenceRow++;
         }
         evidence.Columns().AdjustToContents();

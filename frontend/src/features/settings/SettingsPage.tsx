@@ -59,11 +59,31 @@ export function SettingsPage({
             <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[#f1ddb8] text-[#a86d1d]"><Settings size={21} /></div>
             <div><h2 className="text-xl font-bold">Processing configuration</h2><p className="mt-1 text-xs leading-5 text-[#8f7d64]">Administrator-only connection, credential, and model settings. Credentials are encrypted before storage.</p></div>
           </div>
+          <section className="mb-7 border-b border-[#eee3d1] pb-6">
+            <div><h3 className="text-base font-bold">Case Processing extraction</h3><p className="mt-1 text-xs leading-5 text-[#8f7d64]">Choose which service extracts the fixed headings from uploaded PDFs. Azure mode uses Azure Document Intelligence only; it does not call the hosted or local AI model. This choice is independent of the general AI provider below.</p></div>
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              {([
+                ['api', 'Hosted AI', 'Uses the configured hosted model'],
+                ['local', 'Local AI', 'Uses the configured Ollama model'],
+                ['azure', 'Azure Document Intelligence', 'OCR and field extraction in Azure'],
+              ] as const).map(([mode, title, detail]) => <button type="button" key={mode} className={`provider-card ${settings.screeningProviderMode === mode ? 'provider-card-active' : ''}`} onClick={() => setSettings({ ...settings, screeningProviderMode: mode })}>
+                {mode === 'local' ? <HardDrive size={20} /> : <Cloud size={20} />}
+                <div className="text-left"><div className="text-sm font-bold">{title}</div><div className="mt-1 text-[10px] text-[#917e62]">{detail}</div></div>
+              </button>)}
+            </div>
+            {settings.screeningProviderMode === 'azure' && <div className="mt-5 space-y-4 rounded-xl border border-[#dbe5ef] bg-[#f5f9fc] p-4">
+              <div><label className="field-label">Azure Document Intelligence endpoint</label><input aria-label="Azure Document Intelligence endpoint for Case Processing" className="field-input" value={settings.azureDocumentIntelligenceEndpoint} onChange={(event) => setSettings({ ...settings, azureDocumentIntelligenceEndpoint: event.target.value })} placeholder="https://your-resource.cognitiveservices.azure.com" /><p className="field-help">Use the resource endpoint only; do not include an API route.</p></div>
+              <div className="grid gap-4 sm:grid-cols-2"><div><label className="field-label">Azure API key {settings.hasAzureDocumentIntelligenceKey && <span className="text-[#4f9268]">· configured</span>}</label><input aria-label="Azure API key for Case Processing" type="password" className="field-input" value={azureOcrKey} placeholder={settings.hasAzureDocumentIntelligenceKey ? 'Leave blank to keep current key' : 'Paste Azure key'} onChange={(event) => setAzureOcrKey(event.target.value)} /></div><div><label className="field-label">Field extraction model</label><input aria-label="Azure field extraction model" className="field-input" value={settings.azureDocumentIntelligenceModel} onChange={(event) => setSettings({ ...settings, azureDocumentIntelligenceModel: event.target.value })} placeholder="prebuilt-layout" /><p className="field-help">Usually prebuilt-layout for query fields.</p></div></div>
+              <div className="rounded-xl border border-[#ead8bb] bg-[#fff8eb] p-3 text-[10px] leading-5 text-[#806541]">No custom classifier is needed. Azure Layout reads each PDF and the app groups pages using BOL number and page-number markers. Review the results when a PDF has no clear BOL boundaries or has multiple BOLs on the same page.</div>
+              <button type="button" className="secondary-button" disabled={isTestingProvider || isLoading} onClick={onTestOcr}>{isTestingProvider ? <LoaderCircle size={14} className="animate-spin" /> : <RefreshCw size={14} />}Test Azure connection</button>
+            </div>}
+          </section>
+          <div className="mb-2"><h3 className="text-base font-bold">General AI provider</h3><p className="mt-1 text-xs leading-5 text-[#8f7d64]">Used for chat and other general analysis features, and when Hosted AI or Local AI is selected above for Case Processing.</p></div>
           <div className="mb-6 grid grid-cols-2 gap-3">
             {(['api', 'local'] as ProviderMode[]).map((mode) => (
               <button type="button" key={mode} className={`provider-card ${settings.providerMode === mode ? 'provider-card-active' : ''}`} onClick={() => setSettings({ ...settings, providerMode: mode })}>
                 {mode === 'api' ? <Cloud size={20} /> : <HardDrive size={20} />}
-                <div className="text-left"><div className="text-sm font-bold">{mode === 'api' ? 'Hosted processing' : 'Local processing'}</div><div className="mt-1 text-[10px] text-[#917e62]">{mode === 'api' ? 'Configured external processing endpoint' : 'Processing service on this computer'}</div></div>
+                <div className="text-left"><div className="text-sm font-bold">{mode === 'api' ? 'Hosted AI connection' : 'Local AI connection'}</div><div className="mt-1 text-[10px] text-[#917e62]">{mode === 'api' ? 'Configured external AI endpoint' : 'Ollama service on this computer'}</div></div>
               </button>
             ))}
           </div>
@@ -162,19 +182,6 @@ export function SettingsPage({
               </div>
             </div>
           )}
-          <section className="mt-7 border-t border-[#eee3d1] pt-6">
-            <div><h3 className="text-base font-bold">Scanned PDF OCR</h3><p className="mt-1 text-xs leading-5 text-[#8f7d64]">This is separate from the general AI connection above. It affects only scanned PDFs in template processing.</p></div>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <button type="button" className={`provider-card ${settings.ocrProviderMode === 'ai' ? 'provider-card-active' : ''}`} onClick={() => setSettings({ ...settings, ocrProviderMode: 'ai' })}><Cloud size={20} /><div className="text-left"><div className="text-sm font-bold">AI vision</div><div className="mt-1 text-[10px] text-[#917e62]">Current Claude/vision process</div></div></button>
-              <button type="button" className={`provider-card ${settings.ocrProviderMode === 'azure' ? 'provider-card-active' : ''}`} onClick={() => setSettings({ ...settings, ocrProviderMode: 'azure' })}><Cloud size={20} /><div className="text-left"><div className="text-sm font-bold">Azure OCR</div><div className="mt-1 text-[10px] text-[#917e62]">Document Intelligence Layout</div></div></button>
-            </div>
-            {settings.ocrProviderMode === 'azure' && <div className="mt-5 space-y-4 rounded-xl border border-[#dbe5ef] bg-[#f5f9fc] p-4">
-              <div><label className="field-label">Azure Document Intelligence endpoint</label><input aria-label="Azure Document Intelligence endpoint" className="field-input" value={settings.azureDocumentIntelligenceEndpoint} onChange={(event) => setSettings({ ...settings, azureDocumentIntelligenceEndpoint: event.target.value })} placeholder="https://your-resource.cognitiveservices.azure.com" /><p className="field-help">Use the resource endpoint only; do not include an API route.</p></div>
-              <div className="grid gap-4 sm:grid-cols-2"><div><label className="field-label">Azure API key {settings.hasAzureDocumentIntelligenceKey && <span className="text-[#4f9268]">· configured</span>}</label><input aria-label="Azure API key" type="password" className="field-input" value={azureOcrKey} placeholder={settings.hasAzureDocumentIntelligenceKey ? 'Leave blank to keep current key' : 'Paste Azure key'} onChange={(event) => setAzureOcrKey(event.target.value)} /></div><div><label className="field-label">Document model</label><input aria-label="Azure document model" className="field-input" value={settings.azureDocumentIntelligenceModel} onChange={(event) => setSettings({ ...settings, azureDocumentIntelligenceModel: event.target.value })} placeholder="prebuilt-layout" /></div></div>
-              <label className="flex items-start gap-2 text-xs text-[#5d7185]"><input className="mt-0.5" type="checkbox" checked={settings.azureUseAiFallback} onChange={(event) => setSettings({ ...settings, azureUseAiFallback: event.target.checked })} /><span><strong>Use AI vision for unmatched template fields.</strong> Azure handles OCR first; only empty fields are sent to the configured AI provider.</span></label>
-              <button type="button" className="secondary-button" disabled={isTestingProvider || isLoading} onClick={onTestOcr}>{isTestingProvider ? <LoaderCircle size={14} className="animate-spin" /> : <RefreshCw size={14} />}Test Azure OCR connection</button>
-            </div>}
-          </section>
           <div className="mt-7 flex items-center justify-between border-t border-[#eee3d1] pt-5">
             <div className="flex items-center gap-2 text-[10px] text-[#928069]"><Database size={14} />Settings saved in SQL Server</div>
             <div className="flex items-center gap-2">

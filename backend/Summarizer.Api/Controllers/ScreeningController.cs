@@ -48,7 +48,7 @@ public sealed class ScreeningController(AppDbContext db, DocumentTextExtractor t
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
         var run = new ScreeningRun { TemplateId = template.Id, Template = template, CreatedByUserId = userId };
         var folder = StoragePath(Path.Combine("screening", "runs", run.Id.ToString("N"))); Directory.CreateDirectory(folder);
-        var sources = new List<ScreeningSource>(); var scanned = new List<ScannedScreeningSource>(); var sourceNames = new List<string>();
+        var sources = new List<ScreeningSource>(); var scanned = new List<ScannedScreeningSource>(); var pdfSources = new List<ScannedScreeningSource>(); var sourceNames = new List<string>();
         foreach (var (file, index) in uploaded.Select((file, index) => (file, index)))
         {
             var name = Path.GetFileName(file.FileName); var path = Path.Combine(folder, $"{Guid.NewGuid():N}{Path.GetExtension(name)}");
@@ -56,41 +56,46 @@ public sealed class ScreeningController(AppDbContext db, DocumentTextExtractor t
             var extraction = await textExtractor.ExtractAsync(path, name, token);
             run.SourceFiles.Add(new ProcessingSourceFile { SourceFileIndex = index, OriginalName = name, StoredName = Path.GetFileName(path), StoragePath = path, ContentType = file.ContentType, SizeBytes = file.Length, Sha256 = await HashAsync(path, token), ExtractionStatus = extraction.Status, UploadedByUserId = userId });
             sources.Add(new ScreeningSource(index, name, extraction.Text, extraction.Status)); sourceNames.Add(name);
-            if (extraction.Status == "ocr-required" && Path.GetExtension(name).Equals(".pdf", StringComparison.OrdinalIgnoreCase)) scanned.Add(new ScannedScreeningSource(index, name, path));
-        }
-        var templateRows = ScreeningProcessorService.DeserializeRows(template.RowsJson); var suggestions = processor.SuggestRows(templateRows, sources).ToList(); string? message = null;
-        var settings = await db.ProviderSettings.SingleAsync(x => x.Id == 1, token);
-        foreach (var source in scanned)
-        {
-            if (settings.OcrProviderMode == "azure")
+            if (Path.GetExtension(name).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
             {
-                var azure = await azureDocumentIntelligenceService.ExtractAsync(source.StoragePath, settings, token);
-                if (azure.ConfigurationMessage is not null) { message ??= azure.ConfigurationMessage; continue; }
-
-                var azureSuggestions = processor.SuggestRows(templateRows, [new ScreeningSource(source.Index, source.Name, azure.Text, "ready")]).ToList();
-                suggestions.RemoveAll(item => item.SourceFileIndex == source.Index);
-                suggestions.AddRange(azureSuggestions);
-
-                var missingRows = azureSuggestions.Where(item => string.IsNullOrWhiteSpace(item.EntityName)).Select(item => new TemplateRowDefinition(item.TemplateRowNumber, item.Heading)).ToArray();
-                if (settings.AzureUseAiFallback && missingRows.Length > 0)
-                {
-                    var fallback = await visionExtractor.ExtractAsync(missingRows, source, settings, token);
-                    if (fallback.ConfigurationMessage is null)
-                    {
-                        suggestions.RemoveAll(item => item.SourceFileIndex == source.Index && missingRows.Any(row => row.RowNumber == item.TemplateRowNumber));
-                        suggestions.AddRange(fallback.Suggestions);
-                    }
-                    else message ??= $"Azure OCR completed, but AI fallback was unavailable: {fallback.ConfigurationMessage}";
-                }
+                var pdfSource = new ScannedScreeningSource(index, name, path);
+                pdfSources.Add(pdfSource);
+                if (extraction.Status == "ocr-required") scanned.Add(pdfSource);
             }
-            else
+        }
+        var templateRows = ScreeningProcessorService.DeserializeRows(template.RowsJson);
+        var pdfSourceIndexes = uploaded.Select((file, index) => (file, index))
+            .Where(item => Path.GetExtension(item.file.FileName).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.index)
+            .ToHashSet();
+        var suggestions = processor.SuggestRows(templateRows, sources.Where(source => !pdfSourceIndexes.Contains(source.Index)).ToArray()).ToList();
+        string? message = null;
+        var settings = await db.ProviderSettings.SingleAsync(x => x.Id == 1, token);
+        if (settings.ScreeningProviderMode == "azure")
+        {
+            foreach (var source in pdfSources)
+            {
+                var result = await azureDocumentIntelligenceService.ExtractScreeningAsync(source.StoragePath, source.Index, source.Name, templateRows, settings, token);
+                suggestions.AddRange(result.Suggestions);
+                if (result.ConfigurationMessage is not null) message ??= result.ConfigurationMessage;
+            }
+        }
+        else
+        {
+            foreach (var source in sources.Where(source => pdfSourceIndexes.Contains(source.Index) && source.Status == "ready"))
+            {
+                var result = await visionExtractor.ExtractTextAsync(templateRows, source, settings, token);
+                if (result.ConfigurationMessage is null) suggestions.AddRange(result.Suggestions);
+                else message ??= result.ConfigurationMessage;
+            }
+            foreach (var source in scanned)
             {
                 var result = await visionExtractor.ExtractAsync(templateRows, source, settings, token);
                 if (result.ConfigurationMessage is null) { suggestions.RemoveAll(x => x.SourceFileIndex == source.Index); suggestions.AddRange(result.Suggestions); } else message ??= result.ConfigurationMessage;
             }
         }
         run.SourceFilesJson = JsonSerializer.Serialize(sourceNames);
-        run.Rows = suggestions.Select(x => new ScreeningRow { TemplateRowNumber = x.TemplateRowNumber, SourceFileIndex = x.SourceFileIndex, Heading = x.Heading, EntityName = x.EntityName, EntityTypeCode = x.EntityTypeCode, ExtractedFieldsJson = JsonSerializer.Serialize(CreateFields(x.EntityName, x.EntityTypeCode)), SourceFileName = x.SourceFileName, SourcePageNumber = x.SourcePageNumber, Confidence = x.Confidence, Status = x.Status }).ToList();
+        run.Rows = suggestions.Select(x => new ScreeningRow { TemplateRowNumber = x.TemplateRowNumber, SourceFileIndex = x.SourceFileIndex, BolIndex = x.BolIndex, Heading = x.Heading, EntityName = x.EntityName, EntityTypeCode = x.EntityTypeCode, ExtractedFieldsJson = JsonSerializer.Serialize(CreateFields(x.EntityName, x.EntityTypeCode)), SourceFileName = x.SourceFileName, SourcePageNumber = x.SourcePageNumber, Confidence = x.Confidence, Status = x.Status }).ToList();
         run.ProcessingMessage = message; run.Status = message is null ? "completed" : "completed-with-ocr-warning";
         db.ScreeningRuns.Add(run); await db.SaveChangesAsync(token);
         await audit.RecordAsync("screening.run.created", targetType: "screening-run", targetId: run.Id.ToString(), detail: $"Template: {template.Name}; sources: {sourceNames.Count}", cancellationToken: token);
@@ -128,6 +133,6 @@ public sealed class ScreeningController(AppDbContext db, DocumentTextExtractor t
     private string StoragePath(string folder) => Path.GetFullPath(Path.Combine(config["Storage:FilesPath"] ?? "../../storage/files", folder), environment.ContentRootPath);
     private static Dictionary<string, string> CreateFields(string? name, string? type) { var fields = new Dictionary<string, string>(); if (!string.IsNullOrWhiteSpace(name)) fields["Name*"] = name; if (!string.IsNullOrWhiteSpace(type)) fields["Entity Type*"] = type; return fields; }
     private static ScreeningTemplateResponse ToResponse(ScreeningTemplate x) => new(x.Id, x.Name, x.Version, x.OriginalName, x.WorksheetName, ScreeningProcessorService.DeserializeRows(x.RowsJson).Count, x.IsActive, x.CreatedAtUtc);
-    private static ScreeningRunResponse ToResponse(ScreeningRun x) => new(x.Id, x.TemplateId, x.Template.Name, x.Status, x.ProcessingMessage, x.SourceFiles.Count > 0 ? x.SourceFiles.OrderBy(s => s.SourceFileIndex).Select(s => s.OriginalName).ToArray() : JsonSerializer.Deserialize<List<string>>(x.SourceFilesJson) ?? [], x.CreatedAtUtc, x.CreatedByUserId, x.Rows.OrderBy(r => r.SourceFileIndex).ThenBy(r => r.TemplateRowNumber).Select(r => new ScreeningRowResponse(r.Id, r.TemplateRowNumber, r.SourceFileIndex, r.Heading, r.EntityName, r.EntityTypeCode, JsonSerializer.Deserialize<Dictionary<string, string>>(r.ExtractedFieldsJson) ?? [], r.SourceFileName, r.SourcePageNumber, r.Confidence, r.Status)).ToArray());
+        private static ScreeningRunResponse ToResponse(ScreeningRun x) => new(x.Id, x.TemplateId, x.Template.Name, x.Status, x.ProcessingMessage, x.SourceFiles.Count > 0 ? x.SourceFiles.OrderBy(s => s.SourceFileIndex).Select(s => s.OriginalName).ToArray() : JsonSerializer.Deserialize<List<string>>(x.SourceFilesJson) ?? [], x.CreatedAtUtc, x.CreatedByUserId, x.Rows.OrderBy(r => r.SourceFileIndex).ThenBy(r => r.BolIndex).ThenBy(r => r.TemplateRowNumber).Select(r => new ScreeningRowResponse(r.Id, r.TemplateRowNumber, r.SourceFileIndex, r.Heading, r.EntityName, r.EntityTypeCode, JsonSerializer.Deserialize<Dictionary<string, string>>(r.ExtractedFieldsJson) ?? [], r.SourceFileName, r.SourcePageNumber, r.Confidence, r.Status, r.BolIndex)).ToArray());
     private static async Task<string> HashAsync(string path, CancellationToken token) { await using var input = System.IO.File.OpenRead(path); return Convert.ToHexString(await SHA256.HashDataAsync(input, token)); }
 }
